@@ -79,6 +79,32 @@ export interface Note {
   employee?: Employee;
 }
 
+export interface EmployeeTask {
+  id: string;
+  title: string;
+  details: string | null;
+  status: TaskStatus;
+  due_date: string | null;
+  assigned_to: string;
+  project_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  assignee?: Employee;
+  project?: Pick<Project, "id" | "title">;
+}
+
+export interface PersonalTask {
+  id: string;
+  title: string;
+  details: string | null;
+  status: TaskStatus;
+  due_date: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ReportJson {
   project: string;
   client: string;

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Employee, Project, ProjectTask, ProjectUpdate, Note,
   ProjectStatus, ProjectPriority, TaskStatus, UpdateType,
+  EmployeeTask, PersonalTask,
 } from "@/types";
 
 export async function getCurrentEmployee(supabase: SupabaseClient): Promise<Employee | null> {
@@ -129,5 +130,67 @@ export async function createNote(
 
 export async function deleteNote(supabase: SupabaseClient, noteId: string): Promise<void> {
   const { error } = await supabase.from("notes").delete().eq("id", noteId);
+  if (error) throw error;
+}
+
+export async function getEmployeeTasks(supabase: SupabaseClient): Promise<EmployeeTask[]> {
+  const { data } = await supabase
+    .from("employee_tasks")
+    .select("*, assignee:employees!assigned_to(id, full_name, email, role, created_at), project:projects(id, title)")
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function createEmployeeTask(
+  supabase: SupabaseClient,
+  input: { title: string; details?: string; due_date?: string; assigned_to: string; project_id?: string; created_by: string }
+): Promise<EmployeeTask> {
+  const { data, error } = await supabase.from("employee_tasks").insert({ ...input, status: "todo" }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateEmployeeTask(
+  supabase: SupabaseClient,
+  taskId: string,
+  input: { status: TaskStatus }
+): Promise<void> {
+  const { error } = await supabase.from("employee_tasks").update(input).eq("id", taskId);
+  if (error) throw error;
+}
+
+export async function deleteEmployeeTask(supabase: SupabaseClient, taskId: string): Promise<void> {
+  const { error } = await supabase.from("employee_tasks").delete().eq("id", taskId);
+  if (error) throw error;
+}
+
+export async function getPersonalTasks(supabase: SupabaseClient): Promise<PersonalTask[]> {
+  const { data } = await supabase
+    .from("personal_tasks")
+    .select("*")
+    .order("created_at", { ascending: false });
+  return data ?? [];
+}
+
+export async function createPersonalTask(
+  supabase: SupabaseClient,
+  input: { title: string; details?: string; due_date?: string; created_by: string }
+): Promise<PersonalTask> {
+  const { data, error } = await supabase.from("personal_tasks").insert({ ...input, status: "todo" }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updatePersonalTask(
+  supabase: SupabaseClient,
+  taskId: string,
+  input: { status: TaskStatus }
+): Promise<void> {
+  const { error } = await supabase.from("personal_tasks").update(input).eq("id", taskId);
+  if (error) throw error;
+}
+
+export async function deletePersonalTask(supabase: SupabaseClient, taskId: string): Promise<void> {
+  const { error } = await supabase.from("personal_tasks").delete().eq("id", taskId);
   if (error) throw error;
 }
