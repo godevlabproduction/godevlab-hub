@@ -173,6 +173,18 @@ export default function BookingsPage() {
   const netProfit = totalConfirmedRevenue - totalExpensesSum;
   const totalNights = confirmedBookings.reduce((s, b) => s + b.nights, 0);
 
+  // Per-source totals (all bookings, confirmed + pending)
+  const sourceStats = (["private", "airbnb", "booking"] as BookingSource[]).map(src => {
+    const src_bookings = bookings.filter(b => b.source === src);
+    return {
+      source: src,
+      count: src_bookings.length,
+      confirmed: src_bookings.filter(b => b.confirmed).length,
+      revenue: src_bookings.filter(b => b.confirmed).reduce((s, b) => s + Number(b.total_price), 0),
+      upcoming: src_bookings.filter(b => !b.confirmed && !isBefore(parseISO(b.check_out), today)).reduce((s, b) => s + Number(b.total_price), 0),
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -538,6 +550,29 @@ export default function BookingsPage() {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Per-source breakdown */}
+            <Card>
+              <CardHeader><CardTitle className="text-base">Revenue by Source</CardTitle></CardHeader>
+              <CardContent>
+                <div className="divide-y">
+                  {sourceStats.map(s => (
+                    <div key={s.source} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
+                      <div className="flex items-center gap-3">
+                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${SOURCE_STYLES[s.source]}`}>{SOURCE_LABELS[s.source]}</span>
+                        <span className="text-xs text-muted-foreground">{s.count} booking{s.count !== 1 ? "s" : ""} · {s.confirmed} confirmed</span>
+                      </div>
+                      <div className="flex items-center gap-6 text-sm">
+                        {s.upcoming > 0 && (
+                          <span className="text-amber-600">+€{s.upcoming.toFixed(2)} upcoming</span>
+                        )}
+                        <span className={`font-semibold ${s.revenue > 0 ? "text-gray-900" : "text-muted-foreground"}`}>€{s.revenue.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
 
             {/* All reservations table */}
             <Card>
