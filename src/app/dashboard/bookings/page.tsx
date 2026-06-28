@@ -8,11 +8,11 @@ import {
 } from "date-fns";
 import {
   BedDouble, PlusCircle, Trash2, TrendingUp, TrendingDown, Euro,
-  ChevronLeft, ChevronRight, CheckCircle2, Clock, Users,
+  ChevronLeft, ChevronRight, CheckCircle2, Clock, Users, Pencil, X, Save,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  getBookings, createBooking, deleteBooking, confirmBooking,
+  getBookings, createBooking, updateBooking, deleteBooking, confirmBooking,
   getExpenses, createExpense, deleteExpense,
 } from "@/lib/supabase/queries";
 import { useCurrentEmployee } from "@/hooks/use-employee";
@@ -21,7 +21,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import type { Booking } from "@/types";
+import type { Booking, BookingSource } from "@/types";
+
+const SOURCE_LABELS: Record<BookingSource, string> = {
+  private: "Private",
+  airbnb: "Airbnb",
+  booking: "Booking.com",
+};
+const SOURCE_STYLES: Record<BookingSource, string> = {
+  private: "bg-gray-100 text-gray-700",
+  airbnb: "bg-rose-50 text-rose-700",
+  booking: "bg-blue-50 text-blue-700",
+};
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -50,7 +61,12 @@ export default function BookingsPage() {
   const [checkOut, setCheckOut] = useState("");
   const [pricePerNight, setPricePerNight] = useState("");
   const [guests, setGuests] = useState("1");
+  const [source, setSource] = useState<BookingSource>("private");
   const [notes, setNotes] = useState("");
+
+  // Edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editFields, setEditFields] = useState<Partial<Booking>>({});
 
   // Expense form state
   const [expDescription, setExpDescription] = useState("");
@@ -68,6 +84,19 @@ export default function BookingsPage() {
     : 0;
   const totalPrice = nights > 0 && pricePerNight ? nights * parseFloat(pricePerNight) : 0;
 
+  const editNights = editFields.check_in && editFields.check_out && editFields.check_out > editFields.check_in
+    ? differenceInDays(new Date(editFields.check_out), new Date(editFields.check_in))
+    : (editFields.nights ?? 0);
+  const editTotal = editNights > 0 && editFields.price_per_night
+    ? editNights * Number(editFields.price_per_night)
+    : (editFields.total_price ?? 0);
+
+  const startEdit = (b: Booking) => {
+    setEditingId(b.id);
+    setEditFields({ ...b });
+  };
+  const cancelEdit = () => { setEditingId(null); setEditFields({}); };
+
   const createBookingMutation = useMutation({
     mutationFn: () => createBooking(supabase, {
       guest_name: guestName, phone, country,
@@ -76,12 +105,33 @@ export default function BookingsPage() {
       price_per_night: parseFloat(pricePerNight),
       total_price: totalPrice,
       notes: notes || undefined,
+      source,
       created_by: employee!.id,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       setGuestName(""); setPhone(""); setCountry(""); setCheckIn(""); setCheckOut("");
-      setPricePerNight(""); setGuests("1"); setNotes("");
+      setPricePerNight(""); setGuests("1"); setSource("private"); setNotes("");
+    },
+  });
+
+  const updateBookingMutation = useMutation({
+    mutationFn: () => updateBooking(supabase, editingId!, {
+      guest_name: editFields.guest_name!,
+      phone: editFields.phone!,
+      country: editFields.country!,
+      check_in: editFields.check_in!,
+      check_out: editFields.check_out!,
+      nights: editNights,
+      guests: editFields.guests ?? 1,
+      price_per_night: Number(editFields.price_per_night),
+      total_price: editTotal,
+      notes: editFields.notes || undefined,
+      source: (editFields.source ?? "private") as BookingSource,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      cancelEdit();
     },
   });
 
@@ -169,6 +219,14 @@ export default function BookingsPage() {
                       <Input type="number" min="1" value={guests} onChange={e => setGuests(e.target.value)} placeholder="1" />
                     </div>
                   </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium">Source</label>
+                    <select value={source} onChange={e => setSource(e.target.value as BookingSource)} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <option value="private">Private</option>
+                      <option value="airbnb">Airbnb</option>
+                      <option value="booking">Booking.com</option>
+                    </select>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="mb-1.5 block text-sm font-medium">Check-in</label>
@@ -209,56 +267,112 @@ export default function BookingsPage() {
                     No bookings yet.
                   </CardContent>
                 </Card>
-              ) : bookings.map(booking => (
-                <Card key={booking.id} className={booking.confirmed ? "border-emerald-200" : ""}>
-                  <CardContent className="p-5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-semibold text-gray-900">{booking.guest_name}</p>
-                          <span className="text-xs text-muted-foreground">· {booking.country}</span>
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Users className="h-3 w-3" />{booking.guests}
-                          </span>
-                          {booking.confirmed ? (
-                            <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                              <CheckCircle2 className="h-3 w-3" /> Confirmed
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-                              <Clock className="h-3 w-3" /> Pending
-                            </span>
-                          )}
+              ) : bookings.map(booking => {
+                const isEditing = editingId === booking.id;
+                return (
+                  <Card key={booking.id} className={booking.confirmed ? "border-emerald-200" : ""}>
+                    <CardContent className="p-5">
+                      {isEditing ? (
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium">Guest name</label>
+                              <Input value={editFields.guest_name ?? ""} onChange={e => setEditFields(f => ({ ...f, guest_name: e.target.value }))} />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium">Phone</label>
+                              <Input value={editFields.phone ?? ""} onChange={e => setEditFields(f => ({ ...f, phone: e.target.value }))} />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-3 gap-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium">Country</label>
+                              <Input value={editFields.country ?? ""} onChange={e => setEditFields(f => ({ ...f, country: e.target.value }))} />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium">Guests</label>
+                              <Input type="number" min="1" value={editFields.guests ?? 1} onChange={e => setEditFields(f => ({ ...f, guests: parseInt(e.target.value) || 1 }))} />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium">Source</label>
+                              <select value={editFields.source ?? "private"} onChange={e => setEditFields(f => ({ ...f, source: e.target.value as BookingSource }))} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                <option value="private">Private</option>
+                                <option value="airbnb">Airbnb</option>
+                                <option value="booking">Booking.com</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="mb-1 block text-xs font-medium">Check-in</label>
+                              <Input type="date" value={editFields.check_in ?? ""} onChange={e => setEditFields(f => ({ ...f, check_in: e.target.value }))} />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium">Check-out</label>
+                              <Input type="date" value={editFields.check_out ?? ""} onChange={e => setEditFields(f => ({ ...f, check_out: e.target.value }))} />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium">Price per night (€)</label>
+                            <Input type="number" min="0" step="0.01" value={editFields.price_per_night ?? ""} onChange={e => setEditFields(f => ({ ...f, price_per_night: parseFloat(e.target.value) }))} />
+                          </div>
+                          {editNights > 0 && <p className="text-xs text-muted-foreground">{editNights} nights · Total: <span className="font-semibold text-brand-700">€{editTotal.toFixed(2)}</span></p>}
+                          <div>
+                            <label className="mb-1 block text-xs font-medium">Notes</label>
+                            <Textarea rows={2} value={editFields.notes ?? ""} onChange={e => setEditFields(f => ({ ...f, notes: e.target.value }))} />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button size="sm" className="bg-brand-700 hover:bg-brand-800" onClick={() => updateBookingMutation.mutate()} disabled={updateBookingMutation.isPending}>
+                              <Save className="mr-1 h-3.5 w-3.5" />{updateBookingMutation.isPending ? "Saving..." : "Save"}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={cancelEdit}><X className="mr-1 h-3.5 w-3.5" />Cancel</Button>
+                          </div>
                         </div>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{booking.phone}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          <span>{format(parseISO(booking.check_in), "MMM d")} → {format(parseISO(booking.check_out), "MMM d, yyyy")}</span>
-                          <span>{booking.nights} night{booking.nights !== 1 ? "s" : ""}</span>
-                          <span className="font-semibold text-brand-700">€{Number(booking.total_price).toFixed(2)}</span>
+                      ) : (
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-gray-900">{booking.guest_name}</p>
+                              <span className="text-xs text-muted-foreground">· {booking.country}</span>
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="h-3 w-3" />{booking.guests}</span>
+                              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${SOURCE_STYLES[booking.source]}`}>{SOURCE_LABELS[booking.source]}</span>
+                              {booking.confirmed ? (
+                                <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"><CheckCircle2 className="h-3 w-3" /> Confirmed</span>
+                              ) : (
+                                <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"><Clock className="h-3 w-3" /> Pending</span>
+                              )}
+                            </div>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{booking.phone}</p>
+                            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                              <span>{format(parseISO(booking.check_in), "MMM d")} → {format(parseISO(booking.check_out), "MMM d, yyyy")}</span>
+                              <span>{booking.nights} night{booking.nights !== 1 ? "s" : ""}</span>
+                              <span className="font-semibold text-brand-700">€{Number(booking.total_price).toFixed(2)}</span>
+                            </div>
+                            {booking.notes && <p className="mt-2 text-xs text-muted-foreground">{booking.notes}</p>}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1">
+                            {!booking.confirmed && canManage(booking.created_by) && (
+                              <Button type="button" variant="ghost" size="sm" className="text-xs text-emerald-700 hover:bg-emerald-50" onClick={() => confirmMutation.mutate(booking.id)} disabled={confirmMutation.isPending}>
+                                <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Confirm
+                              </Button>
+                            )}
+                            {canManage(booking.created_by) && (
+                              <>
+                                <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-brand-700" onClick={() => startEdit(booking)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-red-600" onClick={() => deleteBookingMutation.mutate(booking.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        {booking.notes && <p className="mt-2 text-xs text-muted-foreground">{booking.notes}</p>}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        {!booking.confirmed && canManage(booking.created_by) && (
-                          <Button
-                            type="button" variant="ghost" size="sm"
-                            className="text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
-                            onClick={() => confirmMutation.mutate(booking.id)}
-                            disabled={confirmMutation.isPending}
-                          >
-                            <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Confirm
-                          </Button>
-                        )}
-                        {canManage(booking.created_by) && (
-                          <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-red-600" onClick={() => deleteBookingMutation.mutate(booking.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         </TabsContent>

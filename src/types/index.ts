@@ -105,6 +105,8 @@ export interface PersonalTask {
   updated_at: string;
 }
 
+export type BookingSource = "private" | "airbnb" | "booking";
+
 export interface Booking {
   id: string;
   guest_name: string;
@@ -118,6 +120,7 @@ export interface Booking {
   total_price: number;
   notes: string | null;
   confirmed: boolean;
+  source: BookingSource;
   created_by: string;
   created_at: string;
 }

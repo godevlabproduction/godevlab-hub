@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Employee, Project, ProjectTask, ProjectUpdate, Note,
   ProjectStatus, ProjectPriority, TaskStatus, UpdateType,
-  EmployeeTask, PersonalTask, Booking, Expense,
+  EmployeeTask, PersonalTask, Booking, Expense, BookingSource,
 } from "@/types";
 
 export async function getCurrentEmployee(supabase: SupabaseClient): Promise<Employee | null> {
@@ -209,12 +209,26 @@ export async function createBooking(
     guest_name: string; phone: string; country: string;
     check_in: string; check_out: string; nights: number; guests: number;
     price_per_night: number; total_price: number;
-    notes?: string; created_by: string;
+    notes?: string; source: BookingSource; created_by: string;
   }
 ): Promise<Booking> {
   const { data, error } = await supabase.from("bookings").insert(input).select().single();
   if (error) throw error;
   return data;
+}
+
+export async function updateBooking(
+  supabase: SupabaseClient,
+  bookingId: string,
+  input: {
+    guest_name: string; phone: string; country: string;
+    check_in: string; check_out: string; nights: number; guests: number;
+    price_per_night: number; total_price: number;
+    notes?: string; source: BookingSource;
+  }
+): Promise<void> {
+  const { error } = await supabase.from("bookings").update(input).eq("id", bookingId);
+  if (error) throw error;
 }
 
 export async function confirmBooking(supabase: SupabaseClient, bookingId: string): Promise<void> {
