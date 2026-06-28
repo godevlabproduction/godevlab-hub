@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, FolderKanban, StickyNote, Users, LogOut, Sparkles,
-  ClipboardList, CheckSquare,
+  ClipboardList, CheckSquare, BedDouble,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -27,6 +27,12 @@ const navSections = [
     items: [
       { href: "/dashboard/projects", label: "Projects", icon: FolderKanban },
       { href: "/dashboard/notes", label: "Notes", icon: StickyNote },
+    ],
+  },
+  {
+    title: "Bookings",
+    items: [
+      { href: "/dashboard/bookings", label: "Bookings", icon: BedDouble },
     ],
   },
 ];
