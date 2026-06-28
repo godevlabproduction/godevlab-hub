@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { differenceInDays, format } from "date-fns";
-import { BedDouble, PlusCircle, Trash2, TrendingUp, TrendingDown, Euro } from "lucide-react";
+import {
+  differenceInDays, format, startOfMonth, endOfMonth, eachDayOfInterval,
+  getDay, isBefore, isToday, addMonths, subMonths, parseISO, isSameDay,
+} from "date-fns";
+import { BedDouble, PlusCircle, Trash2, TrendingUp, TrendingDown, Euro, ChevronLeft, ChevronRight } from "lucide-react";
+import type { Booking } from "@/types";
 import { createClient } from "@/lib/supabase/client";
 import {
   getBookings, createBooking, deleteBooking,
@@ -29,6 +33,9 @@ export default function BookingsPage() {
   const [checkOut, setCheckOut] = useState("");
   const [pricePerNight, setPricePerNight] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Calendar state
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
   // Expense form state
   const [expDescription, setExpDescription] = useState("");
@@ -109,6 +116,7 @@ export default function BookingsPage() {
           <TabsTrigger value="bookings">Bookings</TabsTrigger>
           <TabsTrigger value="expenses">Expenses</TabsTrigger>
           <TabsTrigger value="summary">Summary</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
         </TabsList>
 
         {/* ── BOOKINGS TAB ── */}
@@ -362,7 +370,214 @@ export default function BookingsPage() {
             </Card>
           </div>
         </TabsContent>
+        {/* ── CALENDAR TAB ── */}
+        <TabsContent value="calendar">
+          <CalendarView bookings={bookings} month={calendarMonth} onMonthChange={setCalendarMonth} />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function getBookingForDay(day: Date, bookings: Booking[]): Booking | null {
+  for (const b of bookings) {
+    const checkIn = parseISO(b.check_in);
+    const checkOut = parseISO(b.check_out);
+    if ((isSameDay(day, checkIn) || isBefore(checkIn, day)) && isBefore(day, checkOut)) {
+      return b;
+    }
+  }
+  return null;
+}
+
+function CalendarView({
+  bookings,
+  month,
+  onMonthChange,
+}: {
+  bookings: Booking[];
+  month: Date;
+  onMonthChange: (m: Date) => void;
+}) {
+  const today = new Date();
+  const monthStart = startOfMonth(month);
+  const monthEnd = endOfMonth(month);
+  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+
+  // Monday-based leading offset (Mon=0 ... Sun=6)
+  const leadingDays = (getDay(monthStart) + 6) % 7;
+
+  const upcomingBookings = bookings
+    .filter(b => !isBefore(parseISO(b.check_out), today))
+    .sort((a, b) => a.check_in.localeCompare(b.check_in));
+
+  const pastBookings = bookings
+    .filter(b => isBefore(parseISO(b.check_out), today))
+    .sort((a, b) => b.check_in.localeCompare(a.check_in));
+
+  return (
+    <div className="mt-4 space-y-6">
+      {/* Month navigation */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">{format(month, "MMMM yyyy")}</CardTitle>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="icon" onClick={() => onMonthChange(subMonths(month, 1))}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="text-xs" onClick={() => onMonthChange(new Date())}>
+                Today
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => onMonthChange(addMonths(month, 1))}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Day labels */}
+          <div className="mb-1 grid grid-cols-7 gap-1">
+            {DAY_LABELS.map(d => (
+              <div key={d} className="py-1 text-center text-xs font-semibold text-muted-foreground">{d}</div>
+            ))}
+          </div>
+          {/* Calendar grid */}
+          <div className="grid grid-cols-7 gap-1">
+            {/* Leading empty cells */}
+            {Array.from({ length: leadingDays }).map((_, i) => (
+              <div key={`empty-${i}`} />
+            ))}
+            {/* Day cells */}
+            {days.map(day => {
+              const booking = getBookingForDay(day, bookings);
+              const isPast = isBefore(day, today) && !isToday(day);
+              const isCheckIn = booking ? isSameDay(day, parseISO(booking.check_in)) : false;
+              const isCheckOut = booking ? isSameDay(addMonths(day, 0), parseISO(booking.check_out)) : false;
+
+              let cellBg = "bg-gray-50";
+              let textColor = "text-gray-400";
+              let borderStyle = "border border-gray-100";
+
+              if (isToday(day)) {
+                cellBg = booking ? "bg-brand-700" : "bg-brand-50";
+                textColor = booking ? "text-white" : "text-brand-700";
+                borderStyle = "border-2 border-brand-700";
+              } else if (booking && !isPast) {
+                cellBg = "bg-emerald-50";
+                textColor = "text-emerald-800";
+                borderStyle = "border border-emerald-200";
+              } else if (booking && isPast) {
+                cellBg = "bg-gray-100";
+                textColor = "text-gray-500";
+                borderStyle = "border border-gray-200";
+              } else if (!isPast) {
+                cellBg = "bg-white";
+                textColor = "text-gray-700";
+                borderStyle = "border border-gray-100";
+              }
+
+              return (
+                <div
+                  key={day.toISOString()}
+                  className={`rounded-lg p-1.5 ${cellBg} ${borderStyle} min-h-[72px]`}
+                >
+                  <div className={`mb-1 text-xs font-semibold ${textColor}`}>
+                    {format(day, "d")}
+                  </div>
+                  {booking && (
+                    <div className="space-y-0.5">
+                      {isCheckIn && (
+                        <div className={`rounded px-1 py-0.5 text-[10px] font-bold ${isPast ? "bg-gray-200 text-gray-600" : "bg-emerald-600 text-white"}`}>
+                          IN
+                        </div>
+                      )}
+                      <p className={`truncate text-[10px] font-medium leading-tight ${textColor}`}>
+                        {booking.guest_name.split(" ")[0]}
+                      </p>
+                      <p className={`text-[10px] leading-tight ${isPast ? "text-gray-400" : "text-emerald-600"}`}>
+                        €{Number(booking.price_per_night).toFixed(0)}/n
+                      </p>
+                      {isCheckOut && (
+                        <div className={`rounded px-1 py-0.5 text-[10px] font-bold ${isPast ? "bg-gray-300 text-gray-600" : "bg-amber-100 text-amber-700"}`}>
+                          OUT
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Legend */}
+          <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-emerald-50 border border-emerald-200" /> Upcoming</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-gray-100 border border-gray-200" /> Past</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-brand-700" /> Today</span>
+            <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-white border border-gray-100" /> Free</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Upcoming reservations */}
+      {upcomingBookings.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-gray-900">Upcoming Reservations</h3>
+          {upcomingBookings.map(b => (
+            <Card key={b.id} className="border-emerald-200">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-900">{b.guest_name}</p>
+                      <span className="text-xs text-muted-foreground">· {b.country}</span>
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{b.phone}</p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span className="font-medium">{format(parseISO(b.check_in), "MMM d")} → {format(parseISO(b.check_out), "MMM d, yyyy")}</span>
+                      <span>{b.nights} night{b.nights !== 1 ? "s" : ""}</span>
+                      <span className="font-semibold text-emerald-600">€{Number(b.total_price).toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    {isBefore(parseISO(b.check_in), today) ? "Ongoing" : `in ${differenceInDays(parseISO(b.check_in), today)}d`}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Past reservations */}
+      {pastBookings.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-gray-500">Past Reservations</h3>
+          {pastBookings.map(b => (
+            <Card key={b.id} className="opacity-70">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-700">{b.guest_name}</p>
+                      <span className="text-xs text-muted-foreground">· {b.country}</span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <span>{format(parseISO(b.check_in), "MMM d")} → {format(parseISO(b.check_out), "MMM d, yyyy")}</span>
+                      <span>{b.nights} night{b.nights !== 1 ? "s" : ""}</span>
+                      <span className="font-semibold text-gray-600">€{Number(b.total_price).toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Past</span>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
