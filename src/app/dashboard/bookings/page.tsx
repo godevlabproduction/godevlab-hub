@@ -6,11 +6,13 @@ import {
   differenceInDays, format, startOfMonth, endOfMonth, eachDayOfInterval,
   getDay, isBefore, isToday, addMonths, subMonths, parseISO, isSameDay,
 } from "date-fns";
-import { BedDouble, PlusCircle, Trash2, TrendingUp, TrendingDown, Euro, ChevronLeft, ChevronRight } from "lucide-react";
-import type { Booking } from "@/types";
+import {
+  BedDouble, PlusCircle, Trash2, TrendingUp, TrendingDown, Euro,
+  ChevronLeft, ChevronRight, CheckCircle2, Clock, Users,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  getBookings, createBooking, deleteBooking,
+  getBookings, createBooking, deleteBooking, confirmBooking,
   getExpenses, createExpense, deleteExpense,
 } from "@/lib/supabase/queries";
 import { useCurrentEmployee } from "@/hooks/use-employee";
@@ -19,11 +21,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import type { Booking } from "@/types";
+
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+function getBookingForDay(day: Date, bookings: Booking[]): Booking | null {
+  for (const b of bookings) {
+    const checkIn = parseISO(b.check_in);
+    const checkOut = parseISO(b.check_out);
+    if ((isSameDay(day, checkIn) || isBefore(checkIn, day)) && isBefore(day, checkOut)) {
+      return b;
+    }
+  }
+  return null;
+}
 
 export default function BookingsPage() {
   const supabase = createClient();
   const queryClient = useQueryClient();
   const { data: employee } = useCurrentEmployee();
+  const today = new Date();
 
   // Booking form state
   const [guestName, setGuestName] = useState("");
@@ -32,15 +49,16 @@ export default function BookingsPage() {
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [pricePerNight, setPricePerNight] = useState("");
+  const [guests, setGuests] = useState("1");
   const [notes, setNotes] = useState("");
-
-  // Calendar state
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
   // Expense form state
   const [expDescription, setExpDescription] = useState("");
   const [expAmount, setExpAmount] = useState("");
   const [expDate, setExpDate] = useState("");
+
+  // Calendar state
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
   const { data: bookings = [] } = useQuery({ queryKey: ["bookings"], queryFn: () => getBookings(supabase) });
   const { data: expenses = [] } = useQuery({ queryKey: ["expenses"], queryFn: () => getExpenses(supabase) });
@@ -52,12 +70,9 @@ export default function BookingsPage() {
 
   const createBookingMutation = useMutation({
     mutationFn: () => createBooking(supabase, {
-      guest_name: guestName,
-      phone,
-      country,
-      check_in: checkIn,
-      check_out: checkOut,
-      nights,
+      guest_name: guestName, phone, country,
+      check_in: checkIn, check_out: checkOut,
+      nights, guests: parseInt(guests) || 1,
       price_per_night: parseFloat(pricePerNight),
       total_price: totalPrice,
       notes: notes || undefined,
@@ -65,7 +80,8 @@ export default function BookingsPage() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
-      setGuestName(""); setPhone(""); setCountry(""); setCheckIn(""); setCheckOut(""); setPricePerNight(""); setNotes("");
+      setGuestName(""); setPhone(""); setCountry(""); setCheckIn(""); setCheckOut("");
+      setPricePerNight(""); setGuests("1"); setNotes("");
     },
   });
 
@@ -74,12 +90,14 @@ export default function BookingsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bookings"] }),
   });
 
+  const confirmMutation = useMutation({
+    mutationFn: (id: string) => confirmBooking(supabase, id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["bookings"] }),
+  });
+
   const createExpenseMutation = useMutation({
     mutationFn: () => createExpense(supabase, {
-      description: expDescription,
-      amount: parseFloat(expAmount),
-      date: expDate,
-      created_by: employee!.id,
+      description: expDescription, amount: parseFloat(expAmount), date: expDate, created_by: employee!.id,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
@@ -96,10 +114,14 @@ export default function BookingsPage() {
   const canCreateExpense = Boolean(expDescription && expAmount && expDate && employee);
   const canManage = (createdBy: string) => employee?.role === "admin" || createdBy === employee?.id;
 
-  const totalRevenue = bookings.reduce((sum, b) => sum + Number(b.total_price), 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
-  const netProfit = totalRevenue - totalExpenses;
-  const totalNights = bookings.reduce((sum, b) => sum + b.nights, 0);
+  // Summary calculations
+  const confirmedBookings = bookings.filter(b => b.confirmed);
+  const upcomingBookings = bookings.filter(b => !b.confirmed && !isBefore(parseISO(b.check_out), today));
+  const totalConfirmedRevenue = confirmedBookings.reduce((s, b) => s + Number(b.total_price), 0);
+  const totalUpcomingRevenue = upcomingBookings.reduce((s, b) => s + Number(b.total_price), 0);
+  const totalExpensesSum = expenses.reduce((s, e) => s + Number(e.amount), 0);
+  const netProfit = totalConfirmedRevenue - totalExpensesSum;
+  const totalNights = confirmedBookings.reduce((s, b) => s + b.nights, 0);
 
   return (
     <div className="space-y-6">
@@ -137,9 +159,15 @@ export default function BookingsPage() {
                     <label className="mb-1.5 block text-sm font-medium">Phone</label>
                     <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+389 ..." />
                   </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium">Country</label>
-                    <Input value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g. Germany" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Country</label>
+                      <Input value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g. Germany" />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium">Guests</label>
+                      <Input type="number" min="1" value={guests} onChange={e => setGuests(e.target.value)} placeholder="1" />
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -165,11 +193,7 @@ export default function BookingsPage() {
                     <label className="mb-1.5 block text-sm font-medium">Notes (optional)</label>
                     <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any notes..." rows={2} />
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-brand-700 hover:bg-brand-800"
-                    disabled={!canCreateBooking || createBookingMutation.isPending}
-                  >
+                  <Button type="submit" className="w-full bg-brand-700 hover:bg-brand-800" disabled={!canCreateBooking || createBookingMutation.isPending}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     {createBookingMutation.isPending ? "Adding..." : "Add Booking"}
                   </Button>
@@ -186,35 +210,51 @@ export default function BookingsPage() {
                   </CardContent>
                 </Card>
               ) : bookings.map(booking => (
-                <Card key={booking.id}>
+                <Card key={booking.id} className={booking.confirmed ? "border-emerald-200" : ""}>
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-semibold text-gray-900">{booking.guest_name}</p>
                           <span className="text-xs text-muted-foreground">· {booking.country}</span>
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Users className="h-3 w-3" />{booking.guests}
+                          </span>
+                          {booking.confirmed ? (
+                            <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                              <CheckCircle2 className="h-3 w-3" /> Confirmed
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                              <Clock className="h-3 w-3" /> Pending
+                            </span>
+                          )}
                         </div>
                         <p className="mt-0.5 text-xs text-muted-foreground">{booking.phone}</p>
                         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                          <span>{format(new Date(booking.check_in), "MMM d")} → {format(new Date(booking.check_out), "MMM d, yyyy")}</span>
+                          <span>{format(parseISO(booking.check_in), "MMM d")} → {format(parseISO(booking.check_out), "MMM d, yyyy")}</span>
                           <span>{booking.nights} night{booking.nights !== 1 ? "s" : ""}</span>
                           <span className="font-semibold text-brand-700">€{Number(booking.total_price).toFixed(2)}</span>
                         </div>
-                        {booking.notes && (
-                          <p className="mt-2 text-xs text-muted-foreground">{booking.notes}</p>
+                        {booking.notes && <p className="mt-2 text-xs text-muted-foreground">{booking.notes}</p>}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {!booking.confirmed && canManage(booking.created_by) && (
+                          <Button
+                            type="button" variant="ghost" size="sm"
+                            className="text-xs text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                            onClick={() => confirmMutation.mutate(booking.id)}
+                            disabled={confirmMutation.isPending}
+                          >
+                            <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> Confirm
+                          </Button>
+                        )}
+                        {canManage(booking.created_by) && (
+                          <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-red-600" onClick={() => deleteBookingMutation.mutate(booking.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         )}
                       </div>
-                      {canManage(booking.created_by) && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-red-600"
-                          onClick={() => deleteBookingMutation.mutate(booking.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -229,10 +269,7 @@ export default function BookingsPage() {
             <Card className="h-fit">
               <CardHeader><CardTitle className="text-base">New Expense</CardTitle></CardHeader>
               <CardContent>
-                <form
-                  onSubmit={e => { e.preventDefault(); if (canCreateExpense) createExpenseMutation.mutate(); }}
-                  className="space-y-4"
-                >
+                <form onSubmit={e => { e.preventDefault(); if (canCreateExpense) createExpenseMutation.mutate(); }} className="space-y-4">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium">Description</label>
                     <Input value={expDescription} onChange={e => setExpDescription(e.target.value)} placeholder="e.g. Cleaning, Repair..." />
@@ -245,25 +282,16 @@ export default function BookingsPage() {
                     <label className="mb-1.5 block text-sm font-medium">Date</label>
                     <Input type="date" value={expDate} onChange={e => setExpDate(e.target.value)} />
                   </div>
-                  <Button
-                    type="submit"
-                    className="w-full bg-brand-700 hover:bg-brand-800"
-                    disabled={!canCreateExpense || createExpenseMutation.isPending}
-                  >
+                  <Button type="submit" className="w-full bg-brand-700 hover:bg-brand-800" disabled={!canCreateExpense || createExpenseMutation.isPending}>
                     <PlusCircle className="mr-2 h-4 w-4" />
                     {createExpenseMutation.isPending ? "Adding..." : "Add Expense"}
                   </Button>
                 </form>
               </CardContent>
             </Card>
-
             <div className="space-y-3">
               {expenses.length === 0 ? (
-                <Card>
-                  <CardContent className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">
-                    No expenses yet.
-                  </CardContent>
-                </Card>
+                <Card><CardContent className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">No expenses yet.</CardContent></Card>
               ) : expenses.map(expense => (
                 <Card key={expense.id}>
                   <CardContent className="p-5">
@@ -276,13 +304,7 @@ export default function BookingsPage() {
                         </div>
                       </div>
                       {canManage(expense.created_by) && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="text-muted-foreground hover:text-red-600"
-                          onClick={() => deleteExpenseMutation.mutate(expense.id)}
-                        >
+                        <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-red-600" onClick={() => deleteExpenseMutation.mutate(expense.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
@@ -296,80 +318,158 @@ export default function BookingsPage() {
 
         {/* ── SUMMARY TAB ── */}
         <TabsContent value="summary">
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50">
-                    <TrendingUp className="h-5 w-5 text-green-600" />
+          <div className="mt-4 space-y-6">
+            {/* Key financials */}
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Confirmed Revenue</p>
+                      <p className="text-2xl font-bold text-gray-900">€{totalConfirmedRevenue.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{confirmedBookings.length} reservation{confirmedBookings.length !== 1 ? "s" : ""}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total Revenue</p>
-                    <p className="text-2xl font-bold text-gray-900">€{totalRevenue.toFixed(2)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50">
-                    <TrendingDown className="h-5 w-5 text-red-600" />
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50">
+                      <Clock className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Upcoming Expected</p>
+                      <p className="text-2xl font-bold text-gray-900">€{totalUpcomingRevenue.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{upcomingBookings.length} pending reservation{upcomingBookings.length !== 1 ? "s" : ""}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total Expenses</p>
-                    <p className="text-2xl font-bold text-gray-900">€{totalExpenses.toFixed(2)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${netProfit >= 0 ? "bg-brand-50" : "bg-red-50"}`}>
-                    <Euro className={`h-5 w-5 ${netProfit >= 0 ? "text-brand-700" : "text-red-600"}`} />
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50">
+                      <TrendingDown className="h-5 w-5 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Expenses</p>
+                      <p className="text-2xl font-bold text-gray-900">€{totalExpensesSum.toFixed(2)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Net Profit</p>
-                    <p className={`text-2xl font-bold ${netProfit >= 0 ? "text-gray-900" : "text-red-600"}`}>
-                      {netProfit < 0 ? "-" : ""}€{Math.abs(netProfit).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-50">
-                    <BedDouble className="h-5 w-5 text-sky-600" />
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${netProfit >= 0 ? "bg-brand-50" : "bg-red-50"}`}>
+                      <Euro className={`h-5 w-5 ${netProfit >= 0 ? "text-brand-700" : "text-red-600"}`} />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Net Profit (confirmed)</p>
+                      <p className={`text-2xl font-bold ${netProfit >= 0 ? "text-gray-900" : "text-red-600"}`}>
+                        {netProfit < 0 ? "-" : ""}€{Math.abs(netProfit).toFixed(2)}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total Bookings</p>
-                    <p className="text-2xl font-bold text-gray-900">{bookings.length}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
 
+            {/* Stats row */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-50">
+                      <BedDouble className="h-5 w-5 text-sky-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Nights (confirmed)</p>
+                      <p className="text-2xl font-bold text-gray-900">{totalNights}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50">
+                      <TrendingUp className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total if All Confirmed</p>
+                      <p className="text-2xl font-bold text-gray-900">€{(totalConfirmedRevenue + totalUpcomingRevenue).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-50">
+                      <Users className="h-5 w-5 text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Guests (confirmed)</p>
+                      <p className="text-2xl font-bold text-gray-900">{confirmedBookings.reduce((s, b) => s + b.guests, 0)}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* All reservations table */}
             <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50">
-                    <BedDouble className="h-5 w-5 text-amber-600" />
+              <CardHeader><CardTitle className="text-base">All Reservations</CardTitle></CardHeader>
+              <CardContent>
+                {bookings.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No reservations yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {[...bookings].sort((a, b) => a.check_in.localeCompare(b.check_in)).map(b => {
+                      const isPast = isBefore(parseISO(b.check_out), today);
+                      const isOngoing = !isBefore(parseISO(b.check_out), today) && !isBefore(today, parseISO(b.check_in));
+                      return (
+                        <div key={b.id} className={`flex items-center justify-between gap-4 rounded-lg border px-4 py-3 ${isPast ? "border-gray-100 bg-gray-50 opacity-70" : isOngoing ? "border-brand-200 bg-brand-50" : "border-gray-200 bg-white"}`}>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-medium text-gray-900">{b.guest_name}</p>
+                              <span className="text-xs text-muted-foreground">· {b.country}</span>
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="h-3 w-3" />{b.guests}</span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                              {format(parseISO(b.check_in), "MMM d")} → {format(parseISO(b.check_out), "MMM d, yyyy")} · {b.nights} night{b.nights !== 1 ? "s" : ""}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-3">
+                            <span className="text-sm font-semibold text-gray-900">€{Number(b.total_price).toFixed(2)}</span>
+                            {b.confirmed ? (
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Confirmed</span>
+                            ) : isPast ? (
+                              <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-600">Unconfirmed</span>
+                            ) : isOngoing ? (
+                              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">Ongoing</span>
+                            ) : (
+                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Upcoming</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total Nights Booked</p>
-                    <p className="text-2xl font-bold text-gray-900">{totalNights}</p>
-                  </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
         </TabsContent>
+
         {/* ── CALENDAR TAB ── */}
         <TabsContent value="calendar">
           <CalendarView bookings={bookings} month={calendarMonth} onMonthChange={setCalendarMonth} />
@@ -377,19 +477,6 @@ export default function BookingsPage() {
       </Tabs>
     </div>
   );
-}
-
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function getBookingForDay(day: Date, bookings: Booking[]): Booking | null {
-  for (const b of bookings) {
-    const checkIn = parseISO(b.check_in);
-    const checkOut = parseISO(b.check_out);
-    if ((isSameDay(day, checkIn) || isBefore(checkIn, day)) && isBefore(day, checkOut)) {
-      return b;
-    }
-  }
-  return null;
 }
 
 function CalendarView({
@@ -405,8 +492,6 @@ function CalendarView({
   const monthStart = startOfMonth(month);
   const monthEnd = endOfMonth(month);
   const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
-
-  // Monday-based leading offset (Mon=0 ... Sun=6)
   const leadingDays = (getDay(monthStart) + 6) % 7;
 
   const upcomingBookings = bookings
@@ -419,7 +504,6 @@ function CalendarView({
 
   return (
     <div className="mt-4 space-y-6">
-      {/* Month navigation */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -438,72 +522,45 @@ function CalendarView({
           </div>
         </CardHeader>
         <CardContent>
-          {/* Day labels */}
           <div className="mb-1 grid grid-cols-7 gap-1">
             {DAY_LABELS.map(d => (
               <div key={d} className="py-1 text-center text-xs font-semibold text-muted-foreground">{d}</div>
             ))}
           </div>
-          {/* Calendar grid */}
           <div className="grid grid-cols-7 gap-1">
-            {/* Leading empty cells */}
-            {Array.from({ length: leadingDays }).map((_, i) => (
-              <div key={`empty-${i}`} />
-            ))}
-            {/* Day cells */}
+            {Array.from({ length: leadingDays }).map((_, i) => <div key={`e-${i}`} />)}
             {days.map(day => {
               const booking = getBookingForDay(day, bookings);
               const isPast = isBefore(day, today) && !isToday(day);
               const isCheckIn = booking ? isSameDay(day, parseISO(booking.check_in)) : false;
-              const isCheckOut = booking ? isSameDay(addMonths(day, 0), parseISO(booking.check_out)) : false;
+              const isCheckOut = booking ? isSameDay(day, parseISO(booking.check_out)) : false;
 
-              let cellBg = "bg-gray-50";
-              let textColor = "text-gray-400";
-              let borderStyle = "border border-gray-100";
-
+              let cellBg = "bg-gray-50", textColor = "text-gray-400", borderStyle = "border border-gray-100";
               if (isToday(day)) {
                 cellBg = booking ? "bg-brand-700" : "bg-brand-50";
                 textColor = booking ? "text-white" : "text-brand-700";
                 borderStyle = "border-2 border-brand-700";
               } else if (booking && !isPast) {
-                cellBg = "bg-emerald-50";
-                textColor = "text-emerald-800";
-                borderStyle = "border border-emerald-200";
+                cellBg = "bg-emerald-50"; textColor = "text-emerald-800"; borderStyle = "border border-emerald-200";
               } else if (booking && isPast) {
-                cellBg = "bg-gray-100";
-                textColor = "text-gray-500";
-                borderStyle = "border border-gray-200";
+                cellBg = "bg-gray-100"; textColor = "text-gray-500"; borderStyle = "border border-gray-200";
               } else if (!isPast) {
-                cellBg = "bg-white";
-                textColor = "text-gray-700";
-                borderStyle = "border border-gray-100";
+                cellBg = "bg-white"; textColor = "text-gray-700"; borderStyle = "border border-gray-100";
               }
 
               return (
-                <div
-                  key={day.toISOString()}
-                  className={`rounded-lg p-1.5 ${cellBg} ${borderStyle} min-h-[72px]`}
-                >
-                  <div className={`mb-1 text-xs font-semibold ${textColor}`}>
-                    {format(day, "d")}
-                  </div>
+                <div key={day.toISOString()} className={`rounded-lg p-1.5 ${cellBg} ${borderStyle} min-h-[72px]`}>
+                  <div className={`mb-1 text-xs font-semibold ${textColor}`}>{format(day, "d")}</div>
                   {booking && (
                     <div className="space-y-0.5">
                       {isCheckIn && (
-                        <div className={`rounded px-1 py-0.5 text-[10px] font-bold ${isPast ? "bg-gray-200 text-gray-600" : "bg-emerald-600 text-white"}`}>
-                          IN
-                        </div>
+                        <div className={`rounded px-1 py-0.5 text-[10px] font-bold ${isPast ? "bg-gray-200 text-gray-600" : "bg-emerald-600 text-white"}`}>IN</div>
                       )}
-                      <p className={`truncate text-[10px] font-medium leading-tight ${textColor}`}>
-                        {booking.guest_name.split(" ")[0]}
-                      </p>
-                      <p className={`text-[10px] leading-tight ${isPast ? "text-gray-400" : "text-emerald-600"}`}>
-                        €{Number(booking.price_per_night).toFixed(0)}/n
-                      </p>
+                      <p className={`truncate text-[10px] font-medium leading-tight ${textColor}`}>{booking.guest_name.split(" ")[0]}</p>
+                      <p className={`text-[10px] leading-tight ${isPast ? "text-gray-400" : "text-emerald-600"}`}>€{Number(booking.price_per_night).toFixed(0)}/n</p>
+                      <p className={`text-[10px] leading-tight ${isPast ? "text-gray-400" : "text-emerald-600"}`}><Users className="inline h-2.5 w-2.5" /> {booking.guests}</p>
                       {isCheckOut && (
-                        <div className={`rounded px-1 py-0.5 text-[10px] font-bold ${isPast ? "bg-gray-300 text-gray-600" : "bg-amber-100 text-amber-700"}`}>
-                          OUT
-                        </div>
+                        <div className={`rounded px-1 py-0.5 text-[10px] font-bold ${isPast ? "bg-gray-300 text-gray-600" : "bg-amber-100 text-amber-700"}`}>OUT</div>
                       )}
                     </div>
                   )}
@@ -511,8 +568,6 @@ function CalendarView({
               );
             })}
           </div>
-
-          {/* Legend */}
           <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-emerald-50 border border-emerald-200" /> Upcoming</span>
             <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded bg-gray-100 border border-gray-200" /> Past</span>
@@ -522,37 +577,43 @@ function CalendarView({
         </CardContent>
       </Card>
 
-      {/* Upcoming reservations */}
       {upcomingBookings.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-900">Upcoming Reservations</h3>
-          {upcomingBookings.map(b => (
-            <Card key={b.id} className="border-emerald-200">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-gray-900">{b.guest_name}</p>
-                      <span className="text-xs text-muted-foreground">· {b.country}</span>
+          {upcomingBookings.map(b => {
+            const isOngoing = !isBefore(today, parseISO(b.check_in));
+            return (
+              <Card key={b.id} className="border-emerald-200">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold text-gray-900">{b.guest_name}</p>
+                        <span className="text-xs text-muted-foreground">· {b.country}</span>
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="h-3 w-3" />{b.guests}</span>
+                        {b.confirmed
+                          ? <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700"><CheckCircle2 className="h-3 w-3" /> Confirmed</span>
+                          : <span className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"><Clock className="h-3 w-3" /> Pending</span>
+                        }
+                      </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{b.phone}</p>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        <span className="font-medium">{format(parseISO(b.check_in), "MMM d")} → {format(parseISO(b.check_out), "MMM d, yyyy")}</span>
+                        <span>{b.nights} night{b.nights !== 1 ? "s" : ""}</span>
+                        <span className="font-semibold text-emerald-600">€{Number(b.total_price).toFixed(2)}</span>
+                      </div>
                     </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{b.phone}</p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                      <span className="font-medium">{format(parseISO(b.check_in), "MMM d")} → {format(parseISO(b.check_out), "MMM d, yyyy")}</span>
-                      <span>{b.nights} night{b.nights !== 1 ? "s" : ""}</span>
-                      <span className="font-semibold text-emerald-600">€{Number(b.total_price).toFixed(2)}</span>
-                    </div>
+                    <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                      {isOngoing ? "Ongoing" : `in ${differenceInDays(parseISO(b.check_in), today)}d`}
+                    </span>
                   </div>
-                  <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                    {isBefore(parseISO(b.check_in), today) ? "Ongoing" : `in ${differenceInDays(parseISO(b.check_in), today)}d`}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      {/* Past reservations */}
       {pastBookings.length > 0 && (
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-gray-500">Past Reservations</h3>
@@ -561,9 +622,10 @@ function CalendarView({
               <CardContent className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-semibold text-gray-700">{b.guest_name}</p>
                       <span className="text-xs text-muted-foreground">· {b.country}</span>
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground"><Users className="h-3 w-3" />{b.guests}</span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       <span>{format(parseISO(b.check_in), "MMM d")} → {format(parseISO(b.check_out), "MMM d, yyyy")}</span>
@@ -571,7 +633,9 @@ function CalendarView({
                       <span className="font-semibold text-gray-600">€{Number(b.total_price).toFixed(2)}</span>
                     </div>
                   </div>
-                  <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Past</span>
+                  <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                    {b.confirmed ? "Confirmed" : "Unconfirmed"}
+                  </span>
                 </div>
               </CardContent>
             </Card>

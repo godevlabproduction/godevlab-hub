@@ -113,9 +113,11 @@ export interface Booking {
   check_in: string;
   check_out: string;
   nights: number;
+  guests: number;
   price_per_night: number;
   total_price: number;
   notes: string | null;
+  confirmed: boolean;
   created_by: string;
   created_at: string;
 }

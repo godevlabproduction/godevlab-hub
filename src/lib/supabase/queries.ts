@@ -207,7 +207,7 @@ export async function createBooking(
   supabase: SupabaseClient,
   input: {
     guest_name: string; phone: string; country: string;
-    check_in: string; check_out: string; nights: number;
+    check_in: string; check_out: string; nights: number; guests: number;
     price_per_night: number; total_price: number;
     notes?: string; created_by: string;
   }
@@ -215,6 +215,11 @@ export async function createBooking(
   const { data, error } = await supabase.from("bookings").insert(input).select().single();
   if (error) throw error;
   return data;
+}
+
+export async function confirmBooking(supabase: SupabaseClient, bookingId: string): Promise<void> {
+  const { error } = await supabase.from("bookings").update({ confirmed: true }).eq("id", bookingId);
+  if (error) throw error;
 }
 
 export async function deleteBooking(supabase: SupabaseClient, bookingId: string): Promise<void> {
