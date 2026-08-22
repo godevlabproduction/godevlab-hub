@@ -55,12 +55,7 @@ curl -s -X POST ${baseUrl}/api/sync/task \\
   -d '{"token":"${token}","title":"<task title>","details":"<optional details>","due_date":"<optional YYYY-MM-DD>"}'
 \`\`\`
 
-Add a note:
-\`\`\`bash
-curl -s -X POST ${baseUrl}/api/sync/note \\
-  -H "Content-Type: application/json" \\
-  -d '{"token":"${token}","title":"<note title>","description":"<note body>"}'
-\`\`\`
+For a note (visible in this project's own Notes section, not the global Notes page), use the progress-update endpoint above with \`"update_type":"note"\`.
 
 All of the above accept the same optional \`employee_email\` field as the progress-update endpoint.`;
 }
