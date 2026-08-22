@@ -105,35 +105,6 @@ export interface PersonalTask {
   updated_at: string;
 }
 
-export type BookingSource = "private" | "airbnb" | "booking";
-
-export interface Booking {
-  id: string;
-  guest_name: string;
-  phone: string;
-  country: string;
-  check_in: string;
-  check_out: string;
-  nights: number;
-  guests: number;
-  price_per_night: number;
-  total_price: number;
-  notes: string | null;
-  confirmed: boolean;
-  source: BookingSource;
-  created_by: string;
-  created_at: string;
-}
-
-export interface Expense {
-  id: string;
-  description: string;
-  amount: number;
-  date: string;
-  created_by: string;
-  created_at: string;
-}
-
 export interface ReportJson {
   project: string;
   client: string;

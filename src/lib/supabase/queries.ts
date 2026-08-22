@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   Employee, Project, ProjectTask, ProjectUpdate, Note,
   ProjectStatus, ProjectPriority, TaskStatus, UpdateType,
-  EmployeeTask, PersonalTask, Booking, Expense, BookingSource,
+  EmployeeTask, PersonalTask,
 } from "@/types";
 
 export async function getCurrentEmployee(supabase: SupabaseClient): Promise<Employee | null> {
@@ -195,70 +195,3 @@ export async function deletePersonalTask(supabase: SupabaseClient, taskId: strin
   if (error) throw error;
 }
 
-export async function getBookings(supabase: SupabaseClient): Promise<Booking[]> {
-  const { data } = await supabase
-    .from("bookings")
-    .select("*")
-    .order("check_in", { ascending: false });
-  return data ?? [];
-}
-
-export async function createBooking(
-  supabase: SupabaseClient,
-  input: {
-    guest_name: string; phone: string; country: string;
-    check_in: string; check_out: string; nights: number; guests: number;
-    price_per_night: number; total_price: number;
-    notes?: string; source: BookingSource; created_by: string;
-  }
-): Promise<Booking> {
-  const { data, error } = await supabase.from("bookings").insert(input).select().single();
-  if (error) throw error;
-  return data;
-}
-
-export async function updateBooking(
-  supabase: SupabaseClient,
-  bookingId: string,
-  input: {
-    guest_name: string; phone: string; country: string;
-    check_in: string; check_out: string; nights: number; guests: number;
-    price_per_night: number; total_price: number;
-    notes?: string; source: BookingSource;
-  }
-): Promise<void> {
-  const { error } = await supabase.from("bookings").update(input).eq("id", bookingId);
-  if (error) throw error;
-}
-
-export async function confirmBooking(supabase: SupabaseClient, bookingId: string): Promise<void> {
-  const { error } = await supabase.from("bookings").update({ confirmed: true }).eq("id", bookingId);
-  if (error) throw error;
-}
-
-export async function deleteBooking(supabase: SupabaseClient, bookingId: string): Promise<void> {
-  const { error } = await supabase.from("bookings").delete().eq("id", bookingId);
-  if (error) throw error;
-}
-
-export async function getExpenses(supabase: SupabaseClient): Promise<Expense[]> {
-  const { data } = await supabase
-    .from("expenses")
-    .select("*")
-    .order("date", { ascending: false });
-  return data ?? [];
-}
-
-export async function createExpense(
-  supabase: SupabaseClient,
-  input: { description: string; amount: number; date: string; created_by: string }
-): Promise<Expense> {
-  const { data, error } = await supabase.from("expenses").insert(input).select().single();
-  if (error) throw error;
-  return data;
-}
-
-export async function deleteExpense(supabase: SupabaseClient, expenseId: string): Promise<void> {
-  const { error } = await supabase.from("expenses").delete().eq("id", expenseId);
-  if (error) throw error;
-}
