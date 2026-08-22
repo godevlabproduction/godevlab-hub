@@ -9,9 +9,10 @@ import {
   getProjects, getAllProjectTasks, getProjectUpdates,
   createProject, updateProject, createProjectTask, updateProjectTask,
   deleteProjectTask, createProjectUpdate, deleteProjectUpdate,
+  getProjectCredentials, createProjectCredential, deleteProjectCredential,
 } from "@/lib/supabase/queries";
 import { useCurrentEmployee } from "@/hooks/use-employee";
-import type { ProjectStatus, ProjectPriority, ProjectLink, ProjectCredential, TaskStatus } from "@/types";
+import type { ProjectStatus, ProjectPriority, ProjectLink, TaskStatus } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,7 +65,7 @@ export default function ProjectsPage() {
   const [credService, setCredService] = useState("");
   const [credUsername, setCredUsername] = useState("");
   const [credPassword, setCredPassword] = useState("");
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<number, boolean>>({});
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 
   function copyToClipboard(text: string, key: string) {
@@ -91,6 +92,11 @@ export default function ProjectsPage() {
   }, [projects, selectedProjectId]);
 
   const selectedProject = useMemo(() => projects.find(p => p.id === selectedProjectId) ?? null, [projects, selectedProjectId]);
+  const { data: projectCredentials = [] } = useQuery({
+    queryKey: ["project_credentials", selectedProjectId],
+    queryFn: () => getProjectCredentials(supabase, selectedProjectId!),
+    enabled: Boolean(selectedProjectId),
+  });
   const selectedTasks = useMemo(() => allTasks.filter(t => t.project_id === selectedProjectId), [allTasks, selectedProjectId]);
   const taskStats = useMemo(() => {
     const done = selectedTasks.filter(t => t.status === "done").length;
@@ -130,6 +136,16 @@ export default function ProjectsPage() {
       return updateProject(supabase, projectId, rest);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
+  });
+
+  const createCredentialMutation = useMutation({
+    mutationFn: (input: { service: string; username: string; password: string }) =>
+      createProjectCredential(supabase, { project_id: selectedProject!.id, created_by: employee!.id, ...input }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project_credentials", selectedProjectId] }),
+  });
+  const deleteCredentialMutation = useMutation({
+    mutationFn: (credentialId: string) => deleteProjectCredential(supabase, credentialId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project_credentials", selectedProjectId] }),
   });
 
   const createTaskMutation = useMutation({
@@ -414,8 +430,7 @@ export default function ProjectsPage() {
                     <form onSubmit={e => {
                       e.preventDefault();
                       if (!credService.trim() || !credUsername.trim() || !credPassword.trim()) return;
-                      const updated: ProjectCredential[] = [...(selectedProject.credentials ?? []), { service: credService.trim(), username: credUsername.trim(), password: credPassword.trim() }];
-                      updateProjectMutation.mutate({ projectId: selectedProject.id, credentials: updated });
+                      createCredentialMutation.mutate({ service: credService.trim(), username: credUsername.trim(), password: credPassword.trim() });
                       setCredService(""); setCredUsername(""); setCredPassword(""); setAddingCred(false);
                     }} className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
                       <Input autoFocus value={credService} onChange={e => setCredService(e.target.value)} placeholder="Service (e.g. Supabase)" className="h-8 w-32 text-sm" />
@@ -425,32 +440,29 @@ export default function ProjectsPage() {
                       <button type="button" onClick={() => { setAddingCred(false); setCredService(""); setCredUsername(""); setCredPassword(""); }} className="text-muted-foreground hover:text-gray-700"><X className="h-4 w-4" /></button>
                     </form>
                   )}
-                  {(selectedProject.credentials ?? []).length === 0 && !addingCred && (
+                  {projectCredentials.length === 0 && !addingCred && (
                     <p className="text-xs text-muted-foreground">No logins saved yet.</p>
                   )}
                   <div className="space-y-2">
-                    {(selectedProject.credentials ?? []).map((cred, i) => (
-                      <div key={i} className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm">
+                    {projectCredentials.map(cred => (
+                      <div key={cred.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm">
                         <span className="w-28 shrink-0 font-medium text-gray-900 truncate">{cred.service}</span>
                         <div className="flex flex-1 items-center gap-1.5 min-w-[140px]">
                           <span className="truncate text-muted-foreground">{cred.username}</span>
-                          <button type="button" onClick={() => copyToClipboard(cred.username, `u${i}`)} className="shrink-0 text-muted-foreground hover:text-brand-700">
-                            {copiedIndex === `u${i}` ? <span className="text-xs text-green-600">Copied</span> : <Copy className="h-3.5 w-3.5" />}
+                          <button type="button" onClick={() => copyToClipboard(cred.username, `u${cred.id}`)} className="shrink-0 text-muted-foreground hover:text-brand-700">
+                            {copiedIndex === `u${cred.id}` ? <span className="text-xs text-green-600">Copied</span> : <Copy className="h-3.5 w-3.5" />}
                           </button>
                         </div>
                         <div className="flex flex-1 items-center gap-1.5 min-w-[140px]">
-                          <span className="truncate font-mono text-muted-foreground">{visiblePasswords[i] ? cred.password : "••••••••"}</span>
-                          <button type="button" onClick={() => setVisiblePasswords(v => ({ ...v, [i]: !v[i] }))} className="shrink-0 text-muted-foreground hover:text-gray-700">
-                            {visiblePasswords[i] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          <span className="truncate font-mono text-muted-foreground">{visiblePasswords[cred.id] ? cred.password : "••••••••"}</span>
+                          <button type="button" onClick={() => setVisiblePasswords(v => ({ ...v, [cred.id]: !v[cred.id] }))} className="shrink-0 text-muted-foreground hover:text-gray-700">
+                            {visiblePasswords[cred.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           </button>
-                          <button type="button" onClick={() => copyToClipboard(cred.password, `p${i}`)} className="shrink-0 text-muted-foreground hover:text-brand-700">
-                            {copiedIndex === `p${i}` ? <span className="text-xs text-green-600">Copied</span> : <Copy className="h-3.5 w-3.5" />}
+                          <button type="button" onClick={() => copyToClipboard(cred.password, `p${cred.id}`)} className="shrink-0 text-muted-foreground hover:text-brand-700">
+                            {copiedIndex === `p${cred.id}` ? <span className="text-xs text-green-600">Copied</span> : <Copy className="h-3.5 w-3.5" />}
                           </button>
                         </div>
-                        <button type="button" onClick={() => {
-                          const updated = (selectedProject.credentials ?? []).filter((_, idx) => idx !== i);
-                          updateProjectMutation.mutate({ projectId: selectedProject.id, credentials: updated });
-                        }} className="shrink-0 text-muted-foreground hover:text-red-500">
+                        <button type="button" onClick={() => deleteCredentialMutation.mutate(cred.id)} className="shrink-0 text-muted-foreground hover:text-red-500">
                           <X className="h-3.5 w-3.5" />
                         </button>
                       </div>
