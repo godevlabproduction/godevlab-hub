@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
-import { CalendarDays, CheckSquare2, Copy, ExternalLink, Eye, EyeOff, FolderKanban, KeyRound, Link2, ListTodo, PlusCircle, Trash2, X } from "lucide-react";
+import { CalendarDays, CheckSquare2, Copy, ExternalLink, Eye, EyeOff, FolderKanban, KeyRound, Link2, ListTodo, PlusCircle, Radio, RefreshCw, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   getProjects, getAllProjectTasks, getProjectUpdates,
   createProject, updateProject, createProjectTask, updateProjectTask,
   deleteProjectTask, createProjectUpdate, deleteProjectUpdate,
   getProjectCredentials, createProjectCredential, deleteProjectCredential,
+  getSyncTokenStatus, generateSyncToken,
 } from "@/lib/supabase/queries";
 import { useCurrentEmployee } from "@/hooks/use-employee";
 import type { ProjectStatus, ProjectPriority, ProjectLink, TaskStatus } from "@/types";
@@ -22,6 +23,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 const selectCls = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
+function buildSyncSnippet(projectTitle: string, token: string): string {
+  return `## GoDevLab Hub — live sync
+
+This project (\`${projectTitle}\`) is registered with GoDevLab Hub. After finishing each meaningful task, milestone, bug fix, or decision, post a progress update:
+
+\`\`\`bash
+curl -s -X POST http://localhost:3000/api/sync/update \\
+  -H "Content-Type: application/json" \\
+  -d '{"token":"${token}","employee_email":"<your email>","title":"<short title>","details":"<1-3 sentences on what changed>","update_type":"progress"}'
+\`\`\`
+
+\`employee_email\` is optional but recommended when more than one person works on this project — it attributes the update to you specifically (unverified — just fill in your own GoDevLab Hub email). Omit it and updates are attributed to whoever set up this project's sync.
+
+Use \`update_type\`: \`"progress"\` (default), \`"blocker"\`, \`"decision"\`, or \`"note"\`.
+
+This requires the GoDevLab Hub dev server (\`npm run dev\`) running on this laptop to receive updates.`;
+}
 
 const statusStyles: Record<ProjectStatus, string> = {
   backlog: "border-gray-200 bg-gray-100 text-gray-700",
@@ -65,6 +84,9 @@ export default function ProjectsPage() {
   const [credService, setCredService] = useState("");
   const [credUsername, setCredUsername] = useState("");
   const [credPassword, setCredPassword] = useState("");
+  const [syncToken, setSyncToken] = useState<string | null>(null);
+  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+  const [syncGenerateError, setSyncGenerateError] = useState<string | null>(null);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 
@@ -97,6 +119,15 @@ export default function ProjectsPage() {
     queryFn: () => getProjectCredentials(supabase, selectedProjectId!),
     enabled: Boolean(selectedProjectId),
   });
+  const { data: syncStatus } = useQuery({
+    queryKey: ["sync-token-status", selectedProjectId],
+    queryFn: () => getSyncTokenStatus(selectedProjectId!),
+    enabled: Boolean(selectedProjectId),
+  });
+  useEffect(() => {
+    setSyncToken(null);
+    setSyncGenerateError(null);
+  }, [selectedProjectId]);
   const selectedTasks = useMemo(() => allTasks.filter(t => t.project_id === selectedProjectId), [allTasks, selectedProjectId]);
   const taskStats = useMemo(() => {
     const done = selectedTasks.filter(t => t.status === "done").length;
@@ -127,6 +158,7 @@ export default function ProjectsPage() {
       setProjectStatus("active"); setProjectPriority("medium"); setProjectDueDate("");
       setProjectRepoPath(""); setProjectRepoUrl(""); setProjectStack("");
       setProjectDialogOpen(false);
+      generateSyncTokenMutation.mutate(project.id);
     },
   });
 
@@ -146,6 +178,16 @@ export default function ProjectsPage() {
   const deleteCredentialMutation = useMutation({
     mutationFn: (credentialId: string) => deleteProjectCredential(supabase, credentialId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project_credentials", selectedProjectId] }),
+  });
+  const generateSyncTokenMutation = useMutation({
+    mutationFn: (projectId?: string) => generateSyncToken(projectId ?? selectedProject!.id),
+    onSuccess: (data) => {
+      setSyncToken(data.token);
+      setRegenerateDialogOpen(false);
+      setSyncGenerateError(null);
+      queryClient.invalidateQueries({ queryKey: ["sync-token-status", data.projectId] });
+    },
+    onError: (err: Error) => setSyncGenerateError(err.message),
   });
 
   const createTaskMutation = useMutation({
@@ -468,6 +510,74 @@ export default function ProjectsPage() {
                       </div>
                     ))}
                   </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                      <Radio className="h-4 w-4 text-brand-700" />
+                      Live Sync
+                    </div>
+                  </div>
+                  {!syncStatus?.exists && !syncToken && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-brand-700 hover:bg-brand-800"
+                      onClick={() => generateSyncTokenMutation.mutate(undefined)}
+                      disabled={generateSyncTokenMutation.isPending}
+                    >
+                      {generateSyncTokenMutation.isPending ? "Setting up..." : "Set up live sync"}
+                    </Button>
+                  )}
+                  {syncGenerateError && <p className="mt-2 text-xs text-red-600">{syncGenerateError}</p>}
+                  {syncToken && (
+                    <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs text-muted-foreground">
+                        Paste this into the project&apos;s CLAUDE.md. This token is shown only once — copy it now.
+                      </p>
+                      <Textarea readOnly rows={8} value={buildSyncSnippet(selectedProject.title, syncToken)} className="font-mono text-xs" />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyToClipboard(buildSyncSnippet(selectedProject.title, syncToken), "sync-snippet")}
+                      >
+                        {copiedIndex === "sync-snippet" ? <span className="text-xs text-green-600">Copied</span> : <><Copy className="mr-1.5 h-3.5 w-3.5" />Copy snippet</>}
+                      </Button>
+                    </div>
+                  )}
+                  {syncStatus?.exists && !syncToken && (
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm">
+                      <span className="text-xs text-muted-foreground">
+                        Live sync active — {syncStatus.regeneratedAt
+                          ? `regenerated ${formatDistanceToNow(new Date(syncStatus.regeneratedAt), { addSuffix: true })}`
+                          : `set up ${formatDistanceToNow(new Date(syncStatus.createdAt!), { addSuffix: true })}`}
+                      </span>
+                      <Dialog open={regenerateDialogOpen} onOpenChange={setRegenerateDialogOpen}>
+                        <DialogTrigger className={cn(buttonVariants(), "h-8 px-3 text-xs bg-white border border-gray-200 text-gray-700 hover:bg-gray-50")}>
+                          <RefreshCw className="mr-1.5 h-3.5 w-3.5 inline" />Regenerate
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader><DialogTitle>Regenerate sync token?</DialogTitle></DialogHeader>
+                          <p className="text-sm text-muted-foreground">
+                            The current token will stop working immediately. Any project still using it will get rejected (401) until you update it with the new one.
+                          </p>
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" variant="ghost" onClick={() => setRegenerateDialogOpen(false)}>Cancel</Button>
+                            <Button
+                              type="button"
+                              className="bg-red-600 hover:bg-red-700"
+                              onClick={() => generateSyncTokenMutation.mutate(undefined)}
+                              disabled={generateSyncTokenMutation.isPending}
+                            >
+                              {generateSyncTokenMutation.isPending ? "Regenerating..." : "Regenerate anyway"}
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
