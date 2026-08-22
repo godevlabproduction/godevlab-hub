@@ -20,7 +20,7 @@ export async function getEmployees(supabase: SupabaseClient): Promise<Employee[]
 export async function getProjects(supabase: SupabaseClient): Promise<Project[]> {
   const { data } = await supabase
     .from("projects")
-    .select("*, employee:employees(id, full_name, email, role, created_at)")
+    .select("*, employee:employees!projects_created_by_fkey(id, full_name, email, role, created_at)")
     .order("updated_at", { ascending: false });
   return data ?? [];
 }
