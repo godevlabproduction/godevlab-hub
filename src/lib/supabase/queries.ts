@@ -250,3 +250,21 @@ export async function createEmployee(input: {
   return json.employee as Employee;
 }
 
+export async function getSyncTokenStatus(projectId: string): Promise<{ exists: boolean; createdAt: string | null; regeneratedAt: string | null }> {
+  const res = await fetch(`/api/projects/sync-token?projectId=${projectId}`);
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Failed to fetch sync token status");
+  return json;
+}
+
+export async function generateSyncToken(projectId: string): Promise<{ token: string; projectId: string; projectTitle: string }> {
+  const res = await fetch("/api/projects/sync-token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectId }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Failed to generate sync token");
+  return json;
+}
+
