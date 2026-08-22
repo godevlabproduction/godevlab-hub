@@ -1,8 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
-  Employee, Project, ProjectTask, ProjectUpdate, Note,
+  Employee, EmployeeRole, Project, ProjectTask, ProjectUpdate, Note,
   ProjectStatus, ProjectPriority, TaskStatus, UpdateType,
-  EmployeeTask, PersonalTask,
+  EmployeeTask, PersonalTask, ProjectCredential, ProjectAssignment,
 } from "@/types";
 
 export async function getCurrentEmployee(supabase: SupabaseClient): Promise<Employee | null> {
@@ -42,7 +42,7 @@ export async function createProject(
 export async function updateProject(
   supabase: SupabaseClient,
   projectId: string,
-  input: Partial<Pick<Project, "status" | "priority" | "due_date" | "title" | "client_name" | "description" | "repo_url" | "deployed_url" | "stack" | "links" | "credentials" | "last_synced_at">>
+  input: Partial<Pick<Project, "status" | "priority" | "due_date" | "title" | "client_name" | "description" | "repo_url" | "deployed_url" | "stack" | "links" | "last_synced_at">>
 ): Promise<void> {
   const { error } = await supabase.from("projects").update(input).eq("id", projectId);
   if (error) throw error;
@@ -193,5 +193,60 @@ export async function updatePersonalTask(
 export async function deletePersonalTask(supabase: SupabaseClient, taskId: string): Promise<void> {
   const { error } = await supabase.from("personal_tasks").delete().eq("id", taskId);
   if (error) throw error;
+}
+
+export async function getProjectCredentials(supabase: SupabaseClient, projectId: string): Promise<ProjectCredential[]> {
+  const { data } = await supabase
+    .from("project_credentials")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: true });
+  return data ?? [];
+}
+
+export async function createProjectCredential(
+  supabase: SupabaseClient,
+  input: { project_id: string; service: string; username: string; password: string; created_by: string }
+): Promise<ProjectCredential> {
+  const { data, error } = await supabase.from("project_credentials").insert(input).select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteProjectCredential(supabase: SupabaseClient, credentialId: string): Promise<void> {
+  const { error } = await supabase.from("project_credentials").delete().eq("id", credentialId);
+  if (error) throw error;
+}
+
+export async function getProjectAssignments(supabase: SupabaseClient): Promise<ProjectAssignment[]> {
+  const { data } = await supabase.from("project_assignments").select("*");
+  return data ?? [];
+}
+
+export async function assignEmployeeToProject(supabase: SupabaseClient, projectId: string, employeeId: string): Promise<void> {
+  const { error } = await supabase.from("project_assignments").insert({ project_id: projectId, employee_id: employeeId });
+  if (error) throw error;
+}
+
+export async function unassignEmployeeFromProject(supabase: SupabaseClient, projectId: string, employeeId: string): Promise<void> {
+  const { error } = await supabase
+    .from("project_assignments")
+    .delete()
+    .eq("project_id", projectId)
+    .eq("employee_id", employeeId);
+  if (error) throw error;
+}
+
+export async function createEmployee(input: {
+  full_name: string; email: string; password: string; role: EmployeeRole;
+}): Promise<Employee> {
+  const res = await fetch("/api/employees/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Failed to create employee");
+  return json.employee as Employee;
 }
 

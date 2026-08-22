@@ -18,9 +18,19 @@ export interface ProjectLink {
 }
 
 export interface ProjectCredential {
+  id: string;
+  project_id: string;
   service: string;
   username: string;
   password: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface ProjectAssignment {
+  project_id: string;
+  employee_id: string;
+  created_at: string;
 }
 
 export interface Project {
@@ -37,7 +47,6 @@ export interface Project {
   deployed_url: string | null;
   stack: string[];
   links: ProjectLink[];
-  credentials: ProjectCredential[];
   last_synced_at: string | null;
   created_by: string;
   created_at: string;
