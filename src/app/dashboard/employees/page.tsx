@@ -86,6 +86,7 @@ export default function EmployeesPage() {
   const [syncTokens, setSyncTokens] = useState<Record<string, string>>({});
   const [regenerateDialogEmployeeId, setRegenerateDialogEmployeeId] = useState<string | null>(null);
   const [copiedSnippetFor, setCopiedSnippetFor] = useState<string | null>(null);
+  const [syncGenerateError, setSyncGenerateError] = useState<string | null>(null);
 
   const createEmployeeMutation = useMutation({
     mutationFn: () => createEmployee({ full_name: newName, email: newEmail, password: newPassword, role: newRole }),
@@ -122,7 +123,9 @@ export default function EmployeesPage() {
       setSyncTokens(t => ({ ...t, [data.employeeId]: data.token }));
       setRegenerateDialogEmployeeId(null);
       queryClient.invalidateQueries({ queryKey: ["employee-sync-status", data.employeeId] });
+      setSyncGenerateError(null);
     },
+    onError: (err: Error) => setSyncGenerateError(err.message),
   });
 
   function copySnippet(employeeId: string, text: string) {
@@ -242,6 +245,7 @@ export default function EmployeesPage() {
                     onCloseRegenerateDialog={() => setRegenerateDialogEmployeeId(null)}
                     copiedSnippet={copiedSnippetFor === emp.id}
                     onCopySnippet={text => copySnippet(emp.id, text)}
+                    generateError={syncGenerateError}
                   />
                 )}
               </CardContent>
@@ -270,6 +274,7 @@ function EmployeeSyncSection({
   onCloseRegenerateDialog,
   copiedSnippet,
   onCopySnippet,
+  generateError,
 }: {
   employeeId: string;
   employeeName: string;
@@ -280,6 +285,7 @@ function EmployeeSyncSection({
   onCloseRegenerateDialog: () => void;
   copiedSnippet: boolean;
   onCopySnippet: (text: string) => void;
+  generateError: string | null;
 }) {
   const { data: syncStatus } = useQuery({
     queryKey: ["employee-sync-status", employeeId],
@@ -304,6 +310,7 @@ function EmployeeSyncSection({
           {generateMutation.isPending ? "Setting up..." : "Set up sync"}
         </Button>
       )}
+      {generateError && <p className="text-xs text-red-600">{generateError}</p>}
       {syncToken && (
         <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
           <p className="text-xs text-muted-foreground">
