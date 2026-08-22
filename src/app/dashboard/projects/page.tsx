@@ -155,6 +155,7 @@ export default function ProjectsPage() {
       setProjectStatus("active"); setProjectPriority("medium"); setProjectDueDate("");
       setProjectRepoPath(""); setProjectRepoUrl(""); setProjectStack("");
       setProjectDialogOpen(false);
+      generateSyncTokenMutation.mutate(project.id);
     },
   });
 
@@ -176,7 +177,7 @@ export default function ProjectsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project_credentials", selectedProjectId] }),
   });
   const generateSyncTokenMutation = useMutation({
-    mutationFn: () => generateSyncToken(selectedProject!.id),
+    mutationFn: (projectId?: string) => generateSyncToken(projectId ?? selectedProject!.id),
     onSuccess: (data) => {
       setSyncToken(data.token);
       setRegenerateDialogOpen(false);
@@ -519,7 +520,7 @@ export default function ProjectsPage() {
                         type="button"
                         size="sm"
                         className="bg-brand-700 hover:bg-brand-800"
-                        onClick={() => generateSyncTokenMutation.mutate()}
+                        onClick={() => generateSyncTokenMutation.mutate(undefined)}
                         disabled={generateSyncTokenMutation.isPending}
                       >
                         {generateSyncTokenMutation.isPending ? "Setting up..." : "Set up live sync"}
@@ -562,7 +563,7 @@ export default function ProjectsPage() {
                               <Button
                                 type="button"
                                 className="bg-red-600 hover:bg-red-700"
-                                onClick={() => generateSyncTokenMutation.mutate()}
+                                onClick={() => generateSyncTokenMutation.mutate(undefined)}
                                 disabled={generateSyncTokenMutation.isPending}
                               >
                                 {generateSyncTokenMutation.isPending ? "Regenerating..." : "Regenerate anyway"}
