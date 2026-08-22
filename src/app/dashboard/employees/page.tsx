@@ -50,6 +50,7 @@ export default function EmployeesPage() {
   const [createError, setCreateError] = useState<string | null>(null);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [assignError, setAssignError] = useState<string | null>(null);
 
   const createEmployeeMutation = useMutation({
     mutationFn: () => createEmployee({ full_name: newName, email: newEmail, password: newPassword, role: newRole }),
@@ -64,12 +65,20 @@ export default function EmployeesPage() {
   const assignMutation = useMutation({
     mutationFn: ({ projectId, employeeId }: { projectId: string; employeeId: string }) =>
       assignEmployeeToProject(supabase, projectId, employeeId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project_assignments"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project_assignments"] });
+      setAssignError(null);
+    },
+    onError: (err: Error) => setAssignError(err.message),
   });
   const unassignMutation = useMutation({
     mutationFn: ({ projectId, employeeId }: { projectId: string; employeeId: string }) =>
       unassignEmployeeFromProject(supabase, projectId, employeeId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project_assignments"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project_assignments"] });
+      setAssignError(null);
+    },
+    onError: (err: Error) => setAssignError(err.message),
   });
 
   const canCreate = Boolean(newName.trim() && newEmail.trim() && newPassword.length >= 8);
@@ -167,6 +176,7 @@ export default function EmployeesPage() {
                             </label>
                           );
                         })}
+                        {assignError && <p className="text-xs text-red-600">{assignError}</p>}
                       </div>
                     )}
                   </div>
