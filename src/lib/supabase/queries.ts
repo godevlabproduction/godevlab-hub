@@ -268,3 +268,8 @@ export async function generateSyncToken(projectId: string): Promise<{ token: str
   return json;
 }
 
+export async function deleteProject(supabase: SupabaseClient, projectId: string): Promise<void> {
+  const { error } = await supabase.from("projects").delete().eq("id", projectId);
+  if (error) throw error;
+}
+

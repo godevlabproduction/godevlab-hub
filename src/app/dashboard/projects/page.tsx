@@ -10,7 +10,7 @@ import {
   createProject, updateProject, createProjectTask, updateProjectTask,
   deleteProjectTask, createProjectUpdate, deleteProjectUpdate,
   getProjectCredentials, createProjectCredential, deleteProjectCredential,
-  getSyncTokenStatus, generateSyncToken,
+  getSyncTokenStatus, generateSyncToken, deleteProject,
 } from "@/lib/supabase/queries";
 import { useCurrentEmployee } from "@/hooks/use-employee";
 import type { ProjectStatus, ProjectPriority, ProjectLink, TaskStatus } from "@/types";
@@ -87,6 +87,7 @@ export default function ProjectsPage() {
   const [credPassword, setCredPassword] = useState("");
   const [syncToken, setSyncToken] = useState<string | null>(null);
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
+  const [deleteProjectDialogOpen, setDeleteProjectDialogOpen] = useState(false);
   const [syncGenerateError, setSyncGenerateError] = useState<string | null>(null);
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
@@ -153,6 +154,7 @@ export default function ProjectsPage() {
       created_by: employee!.id,
     }),
     onSuccess: (project) => {
+      queryClient.setQueryData<typeof project[]>(["projects"], (old) => [project, ...(old ?? [])]);
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       setSelectedProjectId(project.id);
       setProjectTitle(""); setProjectSlug(""); setProjectClientName(""); setProjectDescription("");
@@ -189,6 +191,15 @@ export default function ProjectsPage() {
       queryClient.invalidateQueries({ queryKey: ["sync-token-status", data.projectId] });
     },
     onError: (err: Error) => setSyncGenerateError(err.message),
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: (projectId: string) => deleteProject(supabase, projectId),
+    onSuccess: () => {
+      setDeleteProjectDialogOpen(false);
+      setSelectedProjectId(null);
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    },
   });
 
   const createTaskMutation = useMutation({
@@ -331,13 +342,35 @@ export default function ProjectsPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-3">
+                  <div className="flex items-start gap-3">
                     {[{ label: "Tasks", value: taskStats.total }, { label: "Active", value: taskStats.inProgress }, { label: "Done", value: taskStats.done }].map(s => (
                       <div key={s.label} className="rounded-xl border border-gray-200 px-4 py-3">
                         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground whitespace-nowrap">{s.label}</p>
                         <p className="mt-2 text-xl font-semibold text-gray-900">{s.value}</p>
                       </div>
                     ))}
+                    <Dialog open={deleteProjectDialogOpen} onOpenChange={setDeleteProjectDialogOpen}>
+                      <DialogTrigger className={cn(buttonVariants({ variant: "ghost" }), "h-10 w-10 shrink-0 p-0 text-muted-foreground hover:text-red-600")}>
+                        <Trash2 className="h-4 w-4" />
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader><DialogTitle>Delete project?</DialogTitle></DialogHeader>
+                        <p className="text-sm text-muted-foreground">
+                          This permanently deletes &quot;{selectedProject.title}&quot; and everything attached to it (tasks, updates, credentials, links, sync token). This cannot be undone.
+                        </p>
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="ghost" onClick={() => setDeleteProjectDialogOpen(false)}>Cancel</Button>
+                          <Button
+                            type="button"
+                            className="bg-red-600 hover:bg-red-700"
+                            onClick={() => deleteProjectMutation.mutate(selectedProject.id)}
+                            disabled={deleteProjectMutation.isPending}
+                          >
+                            {deleteProjectMutation.isPending ? "Deleting..." : "Delete permanently"}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
               </CardHeader>
