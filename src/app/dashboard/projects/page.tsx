@@ -264,54 +264,13 @@ export default function ProjectsPage() {
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Create Project</DialogTitle></DialogHeader>
             <form onSubmit={e => { e.preventDefault(); if (canCreate) createProjectMutation.mutate(); }} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium">Title</label>
-                  <Input value={projectTitle} onChange={e => setProjectTitle(e.target.value)} placeholder="Wedding Photo Upload" />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium">Slug</label>
-                  <Input value={projectSlug} onChange={e => setProjectSlug(e.target.value)} placeholder="auto-generated" />
-                </div>
-              </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium">Client name</label>
-                <Input value={projectClientName} onChange={e => setProjectClientName(e.target.value)} placeholder="Client" />
+                <label className="mb-1.5 block text-sm font-medium">Title</label>
+                <Input autoFocus value={projectTitle} onChange={e => setProjectTitle(e.target.value)} placeholder="Wedding Photo Upload" />
               </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Description</label>
-                <Textarea value={projectDescription} onChange={e => setProjectDescription(e.target.value)} rows={3} />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium">Status</label>
-                  <select value={projectStatus} onChange={e => setProjectStatus(e.target.value as ProjectStatus)} className={selectCls}>
-                    {(["backlog","active","review","completed"] as ProjectStatus[]).map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium">Priority</label>
-                  <select value={projectPriority} onChange={e => setProjectPriority(e.target.value as ProjectPriority)} className={selectCls}>
-                    {(["low","medium","high"] as ProjectPriority[]).map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Due date</label>
-                <Input type="date" value={projectDueDate} onChange={e => setProjectDueDate(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Local repo path</label>
-                <Input value={projectRepoPath} onChange={e => setProjectRepoPath(e.target.value)} placeholder="/Users/filipmicevski/Desktop/svadba" />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">GitHub URL</label>
-                <Input value={projectRepoUrl} onChange={e => setProjectRepoUrl(e.target.value)} placeholder="https://github.com/..." />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Stack (comma separated)</label>
-                <Input value={projectStack} onChange={e => setProjectStack(e.target.value)} placeholder="Next.js, Supabase, TypeScript" />
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Everything else (client, description, status, due date, repo, stack) can be added afterward from the project itself.
+              </p>
               <Button type="submit" className="w-full bg-brand-700 hover:bg-brand-800" disabled={!canCreate || createProjectMutation.isPending}>
                 {createProjectMutation.isPending ? "Creating..." : "Create Project"}
               </Button>
