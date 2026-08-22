@@ -39,6 +39,31 @@ curl -s -X POST http://localhost:3000/api/sync/update \\
 
 Use \`update_type\`: \`"progress"\` (default), \`"blocker"\`, \`"decision"\`, or \`"note"\`.
 
+You can also keep the project's own info current as you learn more:
+
+Set/replace the project description:
+\`\`\`bash
+curl -s -X POST http://localhost:3000/api/sync/project \\
+  -H "Content-Type: application/json" \\
+  -d '{"token":"${token}","description":"<what this project is>"}'
+\`\`\`
+
+Add a task:
+\`\`\`bash
+curl -s -X POST http://localhost:3000/api/sync/task \\
+  -H "Content-Type: application/json" \\
+  -d '{"token":"${token}","title":"<task title>","details":"<optional details>","due_date":"<optional YYYY-MM-DD>"}'
+\`\`\`
+
+Add a note:
+\`\`\`bash
+curl -s -X POST http://localhost:3000/api/sync/note \\
+  -H "Content-Type: application/json" \\
+  -d '{"token":"${token}","title":"<note title>","description":"<note body>"}'
+\`\`\`
+
+All of the above accept the same optional \`employee_email\` field as the progress-update endpoint.
+
 This requires the GoDevLab Hub dev server (\`npm run dev\`) running on this laptop to receive updates.`;
 }
 
