@@ -6,12 +6,12 @@ const VALID_UPDATE_TYPES = ["progress", "note", "blocker", "decision"] as const;
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {
-    token?: string; project_id?: string; title?: string; details?: string; update_type?: string;
+    token?: string; employee_email?: string; title?: string; details?: string; update_type?: string;
   } | null;
 
-  const { token, project_id, title, details, update_type } = body ?? {};
-  if (!token || !project_id || !title?.trim()) {
-    return NextResponse.json({ error: "Missing token, project_id, or title" }, { status: 400 });
+  const { token, employee_email, title, details, update_type } = body ?? {};
+  if (!token || !title?.trim()) {
+    return NextResponse.json({ error: "Missing token or title" }, { status: 400 });
   }
   const updateType = VALID_UPDATE_TYPES.includes(update_type as typeof VALID_UPDATE_TYPES[number])
     ? (update_type as typeof VALID_UPDATE_TYPES[number])
@@ -21,8 +21,8 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
 
   const { data: tokenRow } = await admin
-    .from("employee_sync_tokens")
-    .select("employee_id")
+    .from("project_sync_tokens")
+    .select("project_id, created_by")
     .eq("token_hash", tokenHash)
     .maybeSingle();
 
@@ -30,12 +30,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid token" }, { status: 401 });
   }
 
+  let attributedTo = tokenRow.created_by;
+  if (employee_email?.trim()) {
+    const { data: matchedEmployee } = await admin
+      .from("employees")
+      .select("id")
+      .eq("email", employee_email.trim())
+      .maybeSingle();
+    if (matchedEmployee) {
+      attributedTo = matchedEmployee.id;
+    }
+  }
+
   const { error } = await admin.from("project_updates").insert({
-    project_id,
+    project_id: tokenRow.project_id,
     title: title.trim(),
     details: details?.trim() || "",
     update_type: updateType,
-    created_by: tokenRow.employee_id,
+    created_by: attributedTo,
   });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
