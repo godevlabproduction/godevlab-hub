@@ -24,18 +24,18 @@ import { cn } from "@/lib/utils";
 
 const selectCls = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
-function buildSyncSnippet(projectTitle: string, token: string): string {
+function buildSyncSnippet(projectTitle: string, token: string, baseUrl: string, employeeEmail: string): string {
   return `## GoDevLab Hub — live sync
 
 This project (\`${projectTitle}\`) is registered with GoDevLab Hub. After finishing each meaningful task, milestone, bug fix, or decision, post a progress update:
 
 \`\`\`bash
-curl -s -X POST http://localhost:3000/api/sync/update \\
+curl -s -X POST ${baseUrl}/api/sync/update \\
   -H "Content-Type: application/json" \\
-  -d '{"token":"${token}","employee_email":"<your email>","title":"<short title>","details":"<1-3 sentences on what changed>","update_type":"progress"}'
+  -d '{"token":"${token}","employee_email":"${employeeEmail}","title":"<short title>","details":"<1-3 sentences on what changed>","update_type":"progress"}'
 \`\`\`
 
-\`employee_email\` is optional but recommended when more than one person works on this project — it attributes the update to you specifically (unverified — just fill in your own GoDevLab Hub email). Omit it and updates are attributed to whoever set up this project's sync.
+\`employee_email\` defaults to whoever set this up (${employeeEmail}) — change it if a different person is actually the one working in this project, or remove the field to attribute to whoever set up this project's sync.
 
 Use \`update_type\`: \`"progress"\` (default), \`"blocker"\`, \`"decision"\`, or \`"note"\`.
 
@@ -43,28 +43,26 @@ You can also keep the project's own info current as you learn more:
 
 Set/replace the project description:
 \`\`\`bash
-curl -s -X POST http://localhost:3000/api/sync/project \\
+curl -s -X POST ${baseUrl}/api/sync/project \\
   -H "Content-Type: application/json" \\
   -d '{"token":"${token}","description":"<what this project is>"}'
 \`\`\`
 
 Add a task:
 \`\`\`bash
-curl -s -X POST http://localhost:3000/api/sync/task \\
+curl -s -X POST ${baseUrl}/api/sync/task \\
   -H "Content-Type: application/json" \\
   -d '{"token":"${token}","title":"<task title>","details":"<optional details>","due_date":"<optional YYYY-MM-DD>"}'
 \`\`\`
 
 Add a note:
 \`\`\`bash
-curl -s -X POST http://localhost:3000/api/sync/note \\
+curl -s -X POST ${baseUrl}/api/sync/note \\
   -H "Content-Type: application/json" \\
   -d '{"token":"${token}","title":"<note title>","description":"<note body>"}'
 \`\`\`
 
-All of the above accept the same optional \`employee_email\` field as the progress-update endpoint.
-
-This requires the GoDevLab Hub dev server (\`npm run dev\`) running on this laptop to receive updates.`;
+All of the above accept the same optional \`employee_email\` field as the progress-update endpoint.`;
 }
 
 const statusStyles: Record<ProjectStatus, string> = {
@@ -550,22 +548,30 @@ export default function ProjectsPage() {
                       </Button>
                     )}
                     {syncGenerateError && <p className="mt-2 text-xs text-red-600">{syncGenerateError}</p>}
-                    {syncToken && (
+                    {syncToken && (() => {
+                      const snippet = buildSyncSnippet(
+                        selectedProject.title,
+                        syncToken,
+                        typeof window !== "undefined" ? window.location.origin : "",
+                        employee?.email ?? ""
+                      );
+                      return (
                       <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
                         <p className="text-xs text-muted-foreground">
                           Paste this into the project&apos;s CLAUDE.md. This token is shown only once — copy it now.
                         </p>
-                        <Textarea readOnly rows={8} value={buildSyncSnippet(selectedProject.title, syncToken)} className="font-mono text-xs" />
+                        <Textarea readOnly rows={8} value={snippet} className="font-mono text-xs" />
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
-                          onClick={() => copyToClipboard(buildSyncSnippet(selectedProject.title, syncToken), "sync-snippet")}
+                          onClick={() => copyToClipboard(snippet, "sync-snippet")}
                         >
                           {copiedIndex === "sync-snippet" ? <span className="text-xs text-green-600">Copied</span> : <><Copy className="mr-1.5 h-3.5 w-3.5" />Copy snippet</>}
                         </Button>
                       </div>
-                    )}
+                      );
+                    })()}
                     {syncStatus?.exists && !syncToken && (
                       <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm">
                         <span className="text-xs text-muted-foreground">
