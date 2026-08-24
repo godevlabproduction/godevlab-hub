@@ -69,6 +69,18 @@ curl -s -X POST ${baseUrl}/api/sync/task/status \\
   -d '{"token":"${token}","task_id":"<task_id from above>","status":"done"}'
 \`\`\`
 
+Lost track of a task's id? List every task on this project (id, title, status):
+\`\`\`bash
+curl -s "${baseUrl}/api/sync/tasks?token=${token}"
+\`\`\`
+
+Delete a task you created (e.g. a throwaway/test one):
+\`\`\`bash
+curl -s -X POST ${baseUrl}/api/sync/task/delete \\
+  -H "Content-Type: application/json" \\
+  -d '{"token":"${token}","task_id":"<task_id>"}'
+\`\`\`
+
 For a note (visible in this project's own Notes section, not the global Notes page), use the progress-update endpoint above with \`"update_type":"note"\`.
 
 All of the above accept the same optional \`employee_email\` field as the progress-update endpoint.`;
