@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, FolderKanban, StickyNote, Users, LogOut, Sparkles,
-  ClipboardList, CheckSquare,
+  ClipboardList, CheckSquare, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -27,6 +27,12 @@ const navSections = [
     items: [
       { href: "/dashboard/projects", label: "Projects", icon: FolderKanban },
       { href: "/dashboard/notes", label: "Notes", icon: StickyNote },
+    ],
+  },
+  {
+    title: "Apps",
+    items: [
+      { href: "https://dashboard.gogevgelija.com", label: "GoGevgelija Dashboard", icon: ExternalLink, external: true },
     ],
   },
 ];
@@ -73,21 +79,34 @@ export function Sidebar({ employee }: SidebarProps) {
                 {section.title}
               </p>
               <div className="space-y-1">
-                {section.items.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                      isActive(item.href)
-                        ? "bg-brand-50 text-brand-700"
-                        : "text-gray-600 hover:bg-gray-100"
-                    )}
-                  >
-                    <item.icon className="w-4 h-4" />
-                    {item.label}
-                  </Link>
-                ))}
+                {section.items.map((item) =>
+                  "external" in item && item.external ? (
+                    <a
+                      key={item.href}
+                      href={item.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100"
+                    >
+                      <item.icon className="w-4 h-4" />
+                      {item.label}
+                    </a>
+                  ) : (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                        isActive(item.href)
+                          ? "bg-brand-50 text-brand-700"
+                          : "text-gray-600 hover:bg-gray-100"
+                      )}
+                    >
+                      <item.icon className="w-4 h-4" />
+                      {item.label}
+                    </Link>
+                  )
+                )}
               </div>
             </div>
           ))}
