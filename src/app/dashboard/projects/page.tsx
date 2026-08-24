@@ -154,12 +154,19 @@ export default function ProjectsPage() {
     enabled: Boolean(selectedProjectId),
   });
 
+  const statusOrder: Record<ProjectStatus, number> = { active: 0, review: 1, backlog: 2, completed: 3 };
+  const sortedProjects = useMemo(() => [...projects].sort((a, b) => {
+    const byStatus = statusOrder[a.status] - statusOrder[b.status];
+    if (byStatus !== 0) return byStatus;
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+  }), [projects]);
+
   useEffect(() => {
     if (projects.length === 0) { setSelectedProjectId(null); return; }
     if (!selectedProjectId || !projects.some(p => p.id === selectedProjectId)) {
-      setSelectedProjectId(projects[0].id);
+      setSelectedProjectId(sortedProjects[0].id);
     }
-  }, [projects, selectedProjectId]);
+  }, [projects, sortedProjects, selectedProjectId]);
 
   const selectedProject = useMemo(() => projects.find(p => p.id === selectedProjectId) ?? null, [projects, selectedProjectId]);
   const { data: projectCredentials = [] } = useQuery({
@@ -343,9 +350,9 @@ export default function ProjectsPage() {
             <CardDescription>Select a project to review its tasks and activity.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {projects.length === 0 ? (
+            {sortedProjects.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-muted-foreground">No projects yet.</div>
-            ) : projects.map(project => {
+            ) : sortedProjects.map(project => {
               const pTasks = allTasks.filter(t => t.project_id === project.id);
               const pDone = pTasks.filter(t => t.status === "done").length;
               const isActive = selectedProjectId === project.id;
