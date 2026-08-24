@@ -45,6 +45,7 @@ export async function GET(request: Request) {
     .from("project_sync_tokens")
     .select("created_at, regenerated_at")
     .eq("project_id", projectId)
+    .eq("employee_id", auth.userId)
     .maybeSingle();
 
   return NextResponse.json({
@@ -78,18 +79,20 @@ export async function POST(request: Request) {
     .from("project_sync_tokens")
     .select("project_id")
     .eq("project_id", projectId)
+    .eq("employee_id", auth.userId)
     .maybeSingle();
 
   if (existing) {
     const { error } = await admin
       .from("project_sync_tokens")
       .update({ token_hash: tokenHash, regenerated_at: new Date().toISOString() })
-      .eq("project_id", projectId);
+      .eq("project_id", projectId)
+      .eq("employee_id", auth.userId);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   } else {
     const { error } = await admin
       .from("project_sync_tokens")
-      .insert({ project_id: projectId, token_hash: tokenHash, created_by: auth.userId });
+      .insert({ project_id: projectId, employee_id: auth.userId, token_hash: tokenHash });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   }
 

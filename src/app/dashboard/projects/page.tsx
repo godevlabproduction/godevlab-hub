@@ -24,18 +24,16 @@ import { cn } from "@/lib/utils";
 
 const selectCls = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
-function buildSyncSnippet(projectTitle: string, token: string, baseUrl: string, employeeEmail: string): string {
+function buildSyncSnippet(projectTitle: string, token: string, baseUrl: string): string {
   return `## GoDevLab Hub — live sync
 
-This project (\`${projectTitle}\`) is registered with GoDevLab Hub. After finishing each meaningful task, milestone, bug fix, or decision, post a progress update:
+This project (\`${projectTitle}\`) is registered with GoDevLab Hub. This token is yours alone — every update it posts is automatically attributed to you, so there's no field to fill in for who's working. After finishing each meaningful task, milestone, bug fix, or decision, post a progress update:
 
 \`\`\`bash
 curl -s -X POST ${baseUrl}/api/sync/update \\
   -H "Content-Type: application/json" \\
-  -d '{"token":"${token}","employee_email":"${employeeEmail}","title":"<short title>","details":"<1-3 sentences on what changed>","update_type":"progress"}'
+  -d '{"token":"${token}","title":"<short title>","details":"<1-3 sentences on what changed>","update_type":"progress"}'
 \`\`\`
-
-\`employee_email\` defaults to whoever set this up (${employeeEmail}) — change it if a different person is actually the one working in this project, or remove the field to attribute to whoever set up this project's sync.
 
 Use \`update_type\`: \`"progress"\` (default), \`"blocker"\`, \`"decision"\`, or \`"note"\`.
 
@@ -82,8 +80,6 @@ curl -s -X POST ${baseUrl}/api/sync/task/delete \\
 \`\`\`
 
 For a note (visible in this project's own Notes section, not the global Notes page), use the progress-update endpoint above with \`"update_type":"note"\`.
-
-All of the above accept the same optional \`employee_email\` field as the progress-update endpoint.
 
 Task timing matters. When you're handed a batch of work items — a checklist, an audit's findings, a multi-item list — create a \`/api/sync/task\` entry for every item before writing any code for it. Mark each one done via \`/api/sync/task/status\` right when it's actually verified working, not saved up for a batch update at the end. A single one-off request doesn't need this ceremony; a list does.`;
 }
@@ -587,8 +583,7 @@ export default function ProjectsPage() {
                       const snippet = buildSyncSnippet(
                         selectedProject.title,
                         syncToken,
-                        typeof window !== "undefined" ? window.location.origin : "",
-                        employee?.email ?? ""
+                        typeof window !== "undefined" ? window.location.origin : ""
                       );
                       return (
                       <div className="space-y-2 rounded-xl border border-border bg-white/5 p-3">

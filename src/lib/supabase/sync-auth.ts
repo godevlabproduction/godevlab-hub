@@ -12,7 +12,7 @@ export async function resolveSyncAuth(token: string, employeeEmail?: string): Pr
 
   const { data: tokenRow } = await admin
     .from("project_sync_tokens")
-    .select("project_id, created_by")
+    .select("project_id, employee_id")
     .eq("token_hash", tokenHash)
     .maybeSingle();
 
@@ -20,7 +20,10 @@ export async function resolveSyncAuth(token: string, employeeEmail?: string): Pr
     return { error: NextResponse.json({ error: "Invalid token" }, { status: 401 }) };
   }
 
-  let attributedTo = tokenRow.created_by;
+  // The token now identifies the employee on its own (one token per person
+  // per project) - employeeEmail survives only as an explicit override for
+  // the rare case someone else is using your token on your behalf.
+  let attributedTo = tokenRow.employee_id;
   if (employeeEmail?.trim()) {
     const { data: matchedEmployee } = await admin
       .from("employees")
