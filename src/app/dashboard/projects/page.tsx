@@ -83,7 +83,9 @@ curl -s -X POST ${baseUrl}/api/sync/task/delete \\
 
 For a note (visible in this project's own Notes section, not the global Notes page), use the progress-update endpoint above with \`"update_type":"note"\`.
 
-All of the above accept the same optional \`employee_email\` field as the progress-update endpoint.`;
+All of the above accept the same optional \`employee_email\` field as the progress-update endpoint.
+
+Task timing matters. When you're handed a batch of work items — a checklist, an audit's findings, a multi-item list — create a \`/api/sync/task\` entry for every item before writing any code for it. Mark each one done via \`/api/sync/task/status\` right when it's actually verified working, not saved up for a batch update at the end. A single one-off request doesn't need this ceremony; a list does.`;
 }
 
 const statusStyles: Record<ProjectStatus, string> = {
