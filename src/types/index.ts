@@ -48,6 +48,8 @@ export interface Project {
   stack: string[];
   links: ProjectLink[];
   last_synced_at: string | null;
+  last_commit_sha: string | null;
+  last_commit_message: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
