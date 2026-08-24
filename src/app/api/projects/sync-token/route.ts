@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-async function requireAdmin() {
+// Admins can manage sync for any project; a non-admin employee can manage it
+// only for a project actually assigned to them (project_assignments).
+async function requireProjectAccess(projectId: string) {
   const supabase = await createServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -11,22 +13,32 @@ async function requireAdmin() {
   }
 
   const { data: caller } = await supabase.from("employees").select("role").eq("id", user.id).single();
-  if (caller?.role !== "admin") {
-    return { error: NextResponse.json({ error: "Admin access required" }, { status: 403 }) };
+  if (caller?.role === "admin") {
+    return { userId: user.id };
+  }
+
+  const { data: assignment } = await supabase
+    .from("project_assignments")
+    .select("project_id")
+    .eq("project_id", projectId)
+    .eq("employee_id", user.id)
+    .maybeSingle();
+  if (!assignment) {
+    return { error: NextResponse.json({ error: "Admin access or project assignment required" }, { status: 403 }) };
   }
 
   return { userId: user.id };
 }
 
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
-  if ("error" in auth) return auth.error;
-
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get("projectId");
   if (!projectId) {
     return NextResponse.json({ error: "Missing projectId" }, { status: 400 });
   }
+
+  const auth = await requireProjectAccess(projectId);
+  if ("error" in auth) return auth.error;
 
   const admin = createAdminClient();
   const { data } = await admin
@@ -43,14 +55,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireAdmin();
-  if ("error" in auth) return auth.error;
-
   const body = await request.json().catch(() => null) as { projectId?: string } | null;
   const projectId = body?.projectId;
   if (!projectId) {
     return NextResponse.json({ error: "Missing projectId" }, { status: 400 });
   }
+
+  const auth = await requireProjectAccess(projectId);
+  if ("error" in auth) return auth.error;
 
   const admin = createAdminClient();
 

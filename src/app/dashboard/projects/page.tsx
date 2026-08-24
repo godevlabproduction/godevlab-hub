@@ -6,7 +6,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { CalendarDays, CheckSquare2, Copy, ExternalLink, Eye, EyeOff, FolderKanban, GitCommitHorizontal, KeyRound, Link2, ListTodo, PlusCircle, Radio, RefreshCw, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  getProjects, getAllProjectTasks, getProjectUpdates,
+  getProjects, getAllProjectTasks, getProjectUpdates, getProjectAssignments,
   createProject, updateProject, createProjectTask, updateProjectTask,
   deleteProjectTask, createProjectUpdate, deleteProjectUpdate,
   getProjectCredentials, createProjectCredential, deleteProjectCredential,
@@ -148,6 +148,7 @@ export default function ProjectsPage() {
 
   const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => getProjects(supabase) });
   const { data: allTasks = [] } = useQuery({ queryKey: ["project-tasks"], queryFn: () => getAllProjectTasks(supabase) });
+  const { data: projectAssignments = [] } = useQuery({ queryKey: ["project-assignments"], queryFn: () => getProjectAssignments(supabase) });
   const { data: projectUpdates = [] } = useQuery({
     queryKey: ["project-updates", selectedProjectId],
     queryFn: () => getProjectUpdates(supabase, selectedProjectId!),
@@ -169,6 +170,10 @@ export default function ProjectsPage() {
   }, [projects, sortedProjects, selectedProjectId]);
 
   const selectedProject = useMemo(() => projects.find(p => p.id === selectedProjectId) ?? null, [projects, selectedProjectId]);
+  const isAssignedToSelected = Boolean(
+    employee && projectAssignments.some(a => a.project_id === selectedProjectId && a.employee_id === employee.id)
+  );
+  const canManageSync = isAdmin || isAssignedToSelected;
   const { data: projectCredentials = [] } = useQuery({
     queryKey: ["project_credentials", selectedProjectId],
     queryFn: () => getProjectCredentials(supabase, selectedProjectId!),
@@ -558,7 +563,7 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {isAdmin && (
+                {canManageSync && (
                   <div>
                     <div className="mb-2 flex items-center justify-between">
                       <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
