@@ -17,8 +17,8 @@ import { Input } from "@/components/ui/input";
 import type { EmployeeRole } from "@/types";
 
 const roleStyles: Record<string, string> = {
-  admin: "border-brand-300 bg-brand-50 text-brand-700",
-  member: "border-gray-200 bg-gray-100 text-gray-600",
+  admin: "border-primary/40 bg-primary/10 text-primary",
+  member: "border-border bg-white/10 text-muted-foreground",
 };
 
 export default function EmployeesPage() {
@@ -87,7 +87,7 @@ export default function EmployeesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Team</h1>
+          <h1 className="text-2xl font-bold text-foreground">Team</h1>
           <p className="mt-1 text-sm text-muted-foreground">{employees.length} member{employees.length !== 1 ? "s" : ""}</p>
         </div>
         {isAdmin && !addingEmployee && (
@@ -135,10 +135,10 @@ export default function EmployeesPage() {
           const empAssignments = assignments.filter(a => a.employee_id === emp.id);
           const isExpanded = expandedId === emp.id;
           return (
-            <Card key={emp.id} className={emp.id === employee?.id ? "border-brand-300" : ""}>
+            <Card key={emp.id} className={emp.id === employee?.id ? "border-primary/40" : ""}>
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
                     {emp.full_name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                   </div>
                   <Badge variant="outline" className={roleStyles[emp.role]}>{emp.role}</Badge>
@@ -187,7 +187,7 @@ export default function EmployeesPage() {
         })}
 
         {employees.length === 0 && (
-          <div className="col-span-full rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-12 text-center text-sm text-muted-foreground">
+          <div className="col-span-full rounded-xl border border-dashed border-border bg-white/5 px-4 py-12 text-center text-sm text-muted-foreground">
             <Users className="mx-auto mb-2 h-6 w-6" />
             No employees found. Make sure the schema is applied in Supabase.
           </div>

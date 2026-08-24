@@ -89,7 +89,7 @@ export default function NotesPage() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900">{note.title}</p>
+                    <p className="text-sm font-semibold text-foreground">{note.title}</p>
                     <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{note.description}</p>
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                       <span className="font-medium text-brand-700">{note.employee?.full_name ?? "Unknown"}</span>

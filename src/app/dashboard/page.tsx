@@ -153,7 +153,7 @@ export default function DashboardPage() {
                 {recentActivity.map(item => (
                   <div key={item.id} className="flex items-start justify-between gap-4 border-b pb-4 last:border-0 last:pb-0">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                      <p className="text-sm font-medium text-foreground">{item.title}</p>
                       {item.kind === "update" && (
                         <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{item.details}</p>
                       )}
@@ -187,8 +187,8 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-3">
                   {upcomingDeadlines.map(item => (
-                    <div key={item.id} className="rounded-lg border border-gray-200 px-4 py-3">
-                      <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                    <div key={item.id} className="rounded-lg border border-border px-4 py-3">
+                      <p className="text-sm font-medium text-foreground">{item.title}</p>
                       <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
                         <span className="capitalize">{item.subtitle}</span>
                         <span>{format(new Date(item.due_date), "MMM d, yyyy")}</span>
@@ -206,25 +206,25 @@ export default function DashboardPage() {
               <div>
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Tasks completed</span>
-                  <span className="font-medium text-gray-900">{allCompletedTasks.length}/{totalTasks}</span>
+                  <span className="font-medium text-foreground">{allCompletedTasks.length}/{totalTasks}</span>
                 </div>
-                <div className="h-2 rounded-full bg-gray-100">
+                <div className="h-2 rounded-full bg-white/10">
                   <div className="h-2 rounded-full bg-brand-700 transition-all" style={{ width: `${taskCompletionRate}%` }} />
                 </div>
               </div>
               <div>
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">My open tasks</span>
-                  <span className="font-medium text-gray-900">
+                  <span className="font-medium text-foreground">
                     {myEmployeeTasks.filter(t => t.status !== "done").length + personalTasks.filter(t => t.status !== "done").length}
                   </span>
                 </div>
                 <div className="mb-2 flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">Active projects</span>
-                  <span className="font-medium text-gray-900">{activeProjects.length}</span>
+                  <span className="font-medium text-foreground">{activeProjects.length}</span>
                 </div>
               </div>
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
+              <div className="rounded-xl border border-border bg-white/5 px-4 py-4">
                 <p className="text-sm text-muted-foreground">
                   {totalTasks === 0
                     ? "Add tasks to start tracking work."

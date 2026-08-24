@@ -89,15 +89,15 @@ Task timing matters. When you're handed a batch of work items — a checklist, a
 }
 
 const statusStyles: Record<ProjectStatus, string> = {
-  backlog: "border-gray-200 bg-gray-100 text-gray-700",
-  active: "border-sky-200 bg-sky-100 text-sky-700",
-  review: "border-amber-200 bg-amber-100 text-amber-700",
-  completed: "border-emerald-200 bg-emerald-100 text-emerald-700",
+  backlog: "border-border bg-white/10 text-foreground",
+  active: "border-sky-400/30 bg-sky-400/10 text-sky-300",
+  review: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  completed: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
 };
 const taskStyles: Record<TaskStatus, string> = {
-  todo: "border-gray-200 bg-gray-100 text-gray-700",
-  in_progress: "border-blue-200 bg-blue-100 text-blue-700",
-  done: "border-emerald-200 bg-emerald-100 text-emerald-700",
+  todo: "border-border bg-white/10 text-foreground",
+  in_progress: "border-sky-400/30 bg-sky-400/10 text-sky-300",
+  done: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
 };
 
 export default function ProjectsPage() {
@@ -351,17 +351,17 @@ export default function ProjectsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {sortedProjects.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center text-sm text-muted-foreground">No projects yet.</div>
+              <div className="rounded-xl border border-dashed border-border bg-white/5 px-4 py-8 text-center text-sm text-muted-foreground">No projects yet.</div>
             ) : sortedProjects.map(project => {
               const pTasks = allTasks.filter(t => t.project_id === project.id);
               const pDone = pTasks.filter(t => t.status === "done").length;
               const isActive = selectedProjectId === project.id;
               return (
                 <button key={project.id} type="button" onClick={() => setSelectedProjectId(project.id)}
-                  className={`w-full rounded-2xl border p-4 text-left transition-colors ${isActive ? "border-brand-300 bg-brand-50" : "border-gray-200 bg-white hover:border-gray-300"}`}>
+                  className={`w-full rounded-2xl border p-4 text-left transition-colors ${isActive ? "border-primary/40 bg-primary/10" : "border-border bg-white/5 hover:border-white/20"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-gray-900">{project.title}</p>
+                      <p className="truncate text-sm font-semibold text-foreground">{project.title}</p>
                       {project.client_name && <p className="mt-0.5 text-xs text-muted-foreground">{project.client_name}</p>}
                       <p className="mt-1 text-xs text-muted-foreground line-clamp-1">{project.description || "No description."}</p>
                     </div>
@@ -391,15 +391,15 @@ export default function ProjectsPage() {
                     <CardDescription className="mt-1">{selectedProject.description || "No description."}</CardDescription>
                     {selectedProject.stack.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {selectedProject.stack.map(s => <Badge key={s} variant="outline" className="border-gray-200 bg-gray-50 text-xs text-gray-600">{s}</Badge>)}
+                        {selectedProject.stack.map(s => <Badge key={s} variant="outline" className="border-border bg-white/5 text-xs text-muted-foreground">{s}</Badge>)}
                       </div>
                     )}
                   </div>
                   <div className="flex items-start gap-3">
                     {[{ label: "Tasks", value: taskStats.total }, { label: "Active", value: taskStats.inProgress }, { label: "Done", value: taskStats.done }].map(s => (
-                      <div key={s.label} className="rounded-xl border border-gray-200 px-4 py-3">
+                      <div key={s.label} className="rounded-xl border border-border px-4 py-3">
                         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground whitespace-nowrap">{s.label}</p>
-                        <p className="mt-2 text-xl font-semibold text-gray-900">{s.value}</p>
+                        <p className="mt-2 text-xl font-semibold text-foreground">{s.value}</p>
                       </div>
                     ))}
                     <Dialog open={deleteProjectDialogOpen} onOpenChange={setDeleteProjectDialogOpen}>
@@ -449,15 +449,15 @@ export default function ProjectsPage() {
                 <div>
                   <div className="mb-2 flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Completion</span>
-                    <span className="font-medium text-gray-900">{taskStats.completion}%</span>
+                    <span className="font-medium text-foreground">{taskStats.completion}%</span>
                   </div>
-                  <div className="h-2 rounded-full bg-gray-100">
+                  <div className="h-2 rounded-full bg-white/10">
                     <div className="h-2 rounded-full bg-brand-700" style={{ width: `${taskStats.completion}%` }} />
                   </div>
                 </div>
                 <div>
                   <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                       <Link2 className="h-4 w-4 text-brand-700" />
                       Links
                     </div>
@@ -474,11 +474,11 @@ export default function ProjectsPage() {
                       const updated: ProjectLink[] = [...(selectedProject.links ?? []), { label: linkLabel.trim(), url: linkUrl.trim() }];
                       updateProjectMutation.mutate({ projectId: selectedProject.id, links: updated });
                       setLinkLabel(""); setLinkUrl(""); setAddingLink(false);
-                    }} className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    }} className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-white/5 p-3">
                       <Input autoFocus value={linkLabel} onChange={e => setLinkLabel(e.target.value)} placeholder="Label (e.g. Vercel)" className="h-8 w-32 text-sm" />
                       <Input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://..." className="h-8 flex-1 min-w-[180px] text-sm" />
                       <Button type="submit" size="sm" disabled={!linkLabel.trim() || !linkUrl.trim()}>Save</Button>
-                      <button type="button" onClick={() => { setAddingLink(false); setLinkLabel(""); setLinkUrl(""); }} className="text-muted-foreground hover:text-gray-700"><X className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => { setAddingLink(false); setLinkLabel(""); setLinkUrl(""); }} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
                     </form>
                   )}
                   <div className="flex flex-wrap gap-2">
@@ -486,7 +486,7 @@ export default function ProjectsPage() {
                       <span className="text-xs text-muted-foreground">No links yet.</span>
                     )}
                     {(selectedProject.links ?? []).map((link, i) => (
-                      <div key={i} className="group flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 hover:border-brand-300 hover:bg-brand-50 transition-colors">
+                      <div key={i} className="group flex items-center gap-1 rounded-lg border border-border bg-white/5 px-3 py-1.5 text-sm text-foreground hover:border-primary/40 hover:bg-primary/10 transition-colors">
                         <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 font-medium">
                           <ExternalLink className="h-3.5 w-3.5 text-brand-700" />
                           {link.label}
@@ -504,7 +504,7 @@ export default function ProjectsPage() {
 
                 <div>
                   <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                       <KeyRound className="h-4 w-4 text-brand-700" />
                       Logins & Passwords
                     </div>
@@ -520,12 +520,12 @@ export default function ProjectsPage() {
                       if (!credService.trim() || !credUsername.trim() || !credPassword.trim()) return;
                       createCredentialMutation.mutate({ service: credService.trim(), username: credUsername.trim(), password: credPassword.trim() });
                       setCredService(""); setCredUsername(""); setCredPassword(""); setAddingCred(false);
-                    }} className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    }} className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-white/5 p-3">
                       <Input autoFocus value={credService} onChange={e => setCredService(e.target.value)} placeholder="Service (e.g. Supabase)" className="h-8 w-32 text-sm" />
                       <Input value={credUsername} onChange={e => setCredUsername(e.target.value)} placeholder="Username / Email" className="h-8 flex-1 min-w-[160px] text-sm" />
                       <Input value={credPassword} onChange={e => setCredPassword(e.target.value)} placeholder="Password" type="password" className="h-8 flex-1 min-w-[160px] text-sm" />
                       <Button type="submit" size="sm" disabled={!credService.trim() || !credUsername.trim() || !credPassword.trim()}>Save</Button>
-                      <button type="button" onClick={() => { setAddingCred(false); setCredService(""); setCredUsername(""); setCredPassword(""); }} className="text-muted-foreground hover:text-gray-700"><X className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => { setAddingCred(false); setCredService(""); setCredUsername(""); setCredPassword(""); }} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
                     </form>
                   )}
                   {projectCredentials.length === 0 && !addingCred && (
@@ -533,8 +533,8 @@ export default function ProjectsPage() {
                   )}
                   <div className="space-y-2">
                     {projectCredentials.map(cred => (
-                      <div key={cred.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm">
-                        <span className="w-28 shrink-0 font-medium text-gray-900 truncate">{cred.service}</span>
+                      <div key={cred.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-white/5 px-4 py-2.5 text-sm">
+                        <span className="w-28 shrink-0 font-medium text-foreground truncate">{cred.service}</span>
                         <div className="flex flex-1 items-center gap-1.5 min-w-[140px]">
                           <span className="truncate text-muted-foreground">{cred.username}</span>
                           <button type="button" onClick={() => copyToClipboard(cred.username, `u${cred.id}`)} className="shrink-0 text-muted-foreground hover:text-brand-700">
@@ -543,7 +543,7 @@ export default function ProjectsPage() {
                         </div>
                         <div className="flex flex-1 items-center gap-1.5 min-w-[140px]">
                           <span className="truncate font-mono text-muted-foreground">{visiblePasswords[cred.id] ? cred.password : "••••••••"}</span>
-                          <button type="button" onClick={() => setVisiblePasswords(v => ({ ...v, [cred.id]: !v[cred.id] }))} className="shrink-0 text-muted-foreground hover:text-gray-700">
+                          <button type="button" onClick={() => setVisiblePasswords(v => ({ ...v, [cred.id]: !v[cred.id] }))} className="shrink-0 text-muted-foreground hover:text-foreground">
                             {visiblePasswords[cred.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                           </button>
                           <button type="button" onClick={() => copyToClipboard(cred.password, `p${cred.id}`)} className="shrink-0 text-muted-foreground hover:text-brand-700">
@@ -561,7 +561,7 @@ export default function ProjectsPage() {
                 {isAdmin && (
                   <div>
                     <div className="mb-2 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                      <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
                         <Radio className="h-4 w-4 text-brand-700" />
                         Live Sync
                       </div>
@@ -586,7 +586,7 @@ export default function ProjectsPage() {
                         employee?.email ?? ""
                       );
                       return (
-                      <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                      <div className="space-y-2 rounded-xl border border-border bg-white/5 p-3">
                         <p className="text-xs text-muted-foreground">
                           Paste this into the project&apos;s CLAUDE.md. This token is shown only once — copy it now.
                         </p>
@@ -603,14 +603,14 @@ export default function ProjectsPage() {
                       );
                     })()}
                     {syncStatus?.exists && !syncToken && (
-                      <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm">
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white/5 px-4 py-2.5 text-sm">
                         <span className="text-xs text-muted-foreground">
                           Live sync active — {syncStatus.regeneratedAt
                             ? `regenerated ${formatDistanceToNow(new Date(syncStatus.regeneratedAt), { addSuffix: true })}`
                             : `set up ${formatDistanceToNow(new Date(syncStatus.createdAt!), { addSuffix: true })}`}
                         </span>
                         <Dialog open={regenerateDialogOpen} onOpenChange={setRegenerateDialogOpen}>
-                          <DialogTrigger className={cn(buttonVariants(), "h-8 px-3 text-xs bg-white border border-gray-200 text-gray-700 hover:bg-gray-50")}>
+                          <DialogTrigger className={cn(buttonVariants(), "h-8 px-3 text-xs bg-white/5 border border-border text-foreground hover:bg-white/10")}>
                             <RefreshCw className="mr-1.5 h-3.5 w-3.5 inline" />Regenerate
                           </DialogTrigger>
                           <DialogContent>
@@ -668,7 +668,7 @@ export default function ProjectsPage() {
                   <CardDescription>Break the project down into concrete tasks.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <form onSubmit={e => { e.preventDefault(); if (canCreateTask) createTaskMutation.mutate(); }} className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <form onSubmit={e => { e.preventDefault(); if (canCreateTask) createTaskMutation.mutate(); }} className="space-y-3 rounded-2xl border border-border bg-white/5 p-4">
                     <Input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="New task title" />
                     <Textarea value={taskDetails} onChange={e => setTaskDetails(e.target.value)} placeholder="Add context or acceptance criteria." rows={3} />
                     <div className="flex flex-col gap-3 sm:flex-row">
@@ -681,11 +681,11 @@ export default function ProjectsPage() {
                   {selectedTasks.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No tasks yet.</p>
                   ) : selectedTasks.map(task => (
-                    <div key={task.id} className="rounded-2xl border border-gray-200 p-4">
+                    <div key={task.id} className="rounded-2xl border border-border p-4">
                       <div className="flex items-start gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium text-gray-900">{task.title}</p>
+                            <p className="text-sm font-medium text-foreground">{task.title}</p>
                             <Badge variant="outline" className={taskStyles[task.status]}>{task.status.replace("_", " ")}</Badge>
                           </div>
                           {task.details && <p className="mt-2 text-sm text-muted-foreground">{task.details}</p>}
@@ -716,7 +716,7 @@ export default function ProjectsPage() {
                   <CardDescription>Team notes and observations for this project.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <form onSubmit={e => { e.preventDefault(); if (noteText.trim()) createUpdateMutation.mutate(); }} className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                  <form onSubmit={e => { e.preventDefault(); if (noteText.trim()) createUpdateMutation.mutate(); }} className="space-y-3 rounded-2xl border border-border bg-white/5 p-4">
                     <Textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Write a note..." rows={4} />
                     <Button type="submit" className="bg-brand-700 hover:bg-brand-800" disabled={!noteText.trim() || createUpdateMutation.isPending}>
                       <PlusCircle className="mr-2 h-4 w-4" />Add Note
@@ -725,14 +725,14 @@ export default function ProjectsPage() {
                   {projectUpdates.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No notes yet.</p>
                   ) : projectUpdates.map(update => (
-                    <div key={update.id} className="rounded-2xl border border-gray-200 p-4">
+                    <div key={update.id} className="rounded-2xl border border-border p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
                             <span className="text-xs font-semibold text-brand-700">{update.employee?.full_name ?? "Unknown"}</span>
                             <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(update.created_at), { addSuffix: true })}</span>
                           </div>
-                          <p className="whitespace-pre-wrap text-sm text-gray-700">{update.details}</p>
+                          <p className="whitespace-pre-wrap text-sm text-foreground">{update.details}</p>
                         </div>
                         {canManage(update.created_by) && (
                           <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-red-600 shrink-0" onClick={() => deleteUpdateMutation.mutate(update.id)}>

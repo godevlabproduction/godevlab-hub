@@ -18,9 +18,9 @@ import { Badge } from "@/components/ui/badge";
 import type { TaskStatus } from "@/types";
 
 const statusStyles: Record<TaskStatus, string> = {
-  todo: "border-gray-200 bg-gray-100 text-gray-600",
-  in_progress: "border-brand-300 bg-brand-50 text-brand-700",
-  done: "border-green-200 bg-green-50 text-green-700",
+  todo: "border-border bg-white/10 text-muted-foreground",
+  in_progress: "border-sky-400/30 bg-sky-400/10 text-sky-300",
+  done: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
 };
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -82,7 +82,7 @@ export default function EmployeeTasksPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Employee Tasks</h1>
+        <h1 className="text-2xl font-bold text-foreground">Employee Tasks</h1>
         <p className="mt-1 text-sm text-muted-foreground">Assign tasks to team members.</p>
       </div>
 
@@ -157,7 +157,7 @@ export default function EmployeeTasksPage() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-900">{task.title}</p>
+                    <p className="text-sm font-semibold text-foreground">{task.title}</p>
                     {task.details && (
                       <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{task.details}</p>
                     )}

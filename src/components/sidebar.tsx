@@ -9,7 +9,7 @@ import {
   ClipboardList, CheckSquare, ExternalLink, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { ThemePicker } from "@/components/theme-picker";
 import type { Employee } from "@/types";
 
 const navSections = [
@@ -64,24 +64,20 @@ export function Sidebar({ employee }: SidebarProps) {
   };
 
   return (
-    <aside className="w-64 border-r border-sidebar-border bg-sidebar flex flex-col h-screen sticky top-0">
+    <aside className="glass-panel w-64 shrink-0 flex flex-col h-[calc(100dvh-2.5rem)] sticky top-5">
       <div className="p-4">
-        <div className="flex items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar px-3 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-700 to-brand-800">
+        <div className="flex items-center gap-3 px-1 py-1">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-gradient-to-br from-brand-700 to-brand-800">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <div>
-            <p className="text-sm font-bold text-sidebar-foreground">GoDevLab</p>
-            <p className="text-xs text-muted-foreground">Agency Hub</p>
-          </div>
+          <p className="font-mono text-base font-bold text-sidebar-foreground">GoDevLab</p>
         </div>
       </div>
-      <Separator />
-      <nav className="flex-1 p-3">
-        <div className="space-y-5">
+      <nav className="flex-1 px-3 pb-3">
+        <div className="space-y-6">
           {navSections.map((section) => (
-            <div key={section.title} className="space-y-1.5">
-              <p className="px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <div key={section.title} className="space-y-1">
+              <p className="px-3 text-[10px] font-mono font-medium uppercase tracking-[0.1em] text-muted-foreground">
                 {section.title}
               </p>
               <div className="space-y-1">
@@ -92,7 +88,7 @@ export function Sidebar({ employee }: SidebarProps) {
                       href={item.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                      className="flex items-center gap-3 rounded-2xl px-3 py-2.5 font-mono text-sm font-medium text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     >
                       <item.icon className="w-4 h-4" />
                       {item.label}
@@ -102,7 +98,7 @@ export function Sidebar({ employee }: SidebarProps) {
                       key={item.href}
                       href={item.href}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                        "flex items-center gap-3 rounded-2xl px-3 py-2.5 font-mono text-sm font-medium transition-colors",
                         isActive(item.href)
                           ? "bg-sidebar-accent text-sidebar-accent-foreground"
                           : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
@@ -118,14 +114,21 @@ export function Sidebar({ employee }: SidebarProps) {
           ))}
         </div>
       </nav>
-      <Separator />
-      <div className="p-3 space-y-2">
-        {employee && (
-          <div className="px-3 py-2">
-            <p className="text-sm font-medium truncate text-sidebar-foreground">{employee.full_name}</p>
-            <p className="text-xs text-muted-foreground capitalize">{employee.role}</p>
-          </div>
-        )}
+      <div className="space-y-2 p-3">
+        <div className="flex items-center justify-between gap-2 px-1 pb-2">
+          {employee && (
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-mono font-bold text-primary-foreground">
+                {employee.full_name.slice(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate font-mono text-sm font-medium text-sidebar-foreground">{employee.full_name}</p>
+                <p className="font-mono text-[11px] text-muted-foreground capitalize">{employee.role}</p>
+              </div>
+            </div>
+          )}
+          <ThemePicker />
+        </div>
         <Button variant="ghost" className="w-full justify-start text-muted-foreground" onClick={handleLogout}>
           <LogOut className="w-4 h-4 mr-2" />
           Sign Out

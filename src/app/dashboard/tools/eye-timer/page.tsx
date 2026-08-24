@@ -95,7 +95,7 @@ export default function EyeTimerPage() {
       <div className="flex items-center gap-3">
         <Eye className="h-6 w-6 text-brand-700" />
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Eye Rest Timer</h1>
+          <h1 className="text-2xl font-bold text-foreground">Eye Rest Timer</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             The WHO&apos;s 20-20-20 rule: every 20 minutes, look at something 20 feet away for 20 seconds.
           </p>
@@ -116,10 +116,10 @@ export default function EyeTimerPage() {
         <CardContent className="space-y-6">
           <div
             className={`rounded-2xl border py-10 text-center ${
-              phase === "rest" ? "border-brand-200 bg-brand-50" : "border-gray-200 bg-gray-50"
+              phase === "rest" ? "border-primary/40 bg-primary/10" : "border-border bg-white/5"
             }`}
           >
-            <p className={`font-mono text-5xl font-bold ${phase === "rest" ? "text-brand-700" : "text-gray-900"}`}>
+            <p className={`font-mono text-5xl font-bold ${phase === "rest" ? "text-brand-700" : "text-foreground"}`}>
               {formatTime(remaining)}
             </p>
           </div>

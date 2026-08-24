@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AmbientBackground } from "@/components/ambient-background";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,10 +30,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-sm space-y-6 rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+    <div className="min-h-screen flex items-center justify-center">
+      <AmbientBackground />
+      <div className="glass-panel w-full max-w-sm space-y-6 p-8">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">GoDevLab</h1>
+          <h1 className="font-mono text-xl font-bold text-foreground">GoDevLab</h1>
           <p className="mt-1 text-sm text-muted-foreground">Sign in to your workspace</p>
         </div>
         <form onSubmit={handleLogin} className="space-y-4">
