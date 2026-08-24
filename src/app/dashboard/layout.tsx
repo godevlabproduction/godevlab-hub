@@ -7,7 +7,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { data: employee = null } = useCurrentEmployee();
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-background">
       <Sidebar employee={employee} />
       <main className="flex-1 overflow-y-auto p-6">{children}</main>
     </div>

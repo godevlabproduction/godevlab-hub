@@ -64,14 +64,14 @@ export function Sidebar({ employee }: SidebarProps) {
   };
 
   return (
-    <aside className="w-64 border-r bg-white flex flex-col h-screen sticky top-0">
+    <aside className="w-64 border-r border-sidebar-border bg-sidebar flex flex-col h-screen sticky top-0">
       <div className="p-4">
-        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-3 py-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-700">
+        <div className="flex items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar px-3 py-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand-700 to-brand-800">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-900">GoDevLab</p>
+            <p className="text-sm font-bold text-sidebar-foreground">GoDevLab</p>
             <p className="text-xs text-muted-foreground">Agency Hub</p>
           </div>
         </div>
@@ -92,7 +92,7 @@ export function Sidebar({ employee }: SidebarProps) {
                       href={item.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100"
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     >
                       <item.icon className="w-4 h-4" />
                       {item.label}
@@ -104,8 +104,8 @@ export function Sidebar({ employee }: SidebarProps) {
                       className={cn(
                         "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
                         isActive(item.href)
-                          ? "bg-brand-50 text-brand-700"
-                          : "text-gray-600 hover:bg-gray-100"
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                          : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
                       )}
                     >
                       <item.icon className="w-4 h-4" />
@@ -122,11 +122,11 @@ export function Sidebar({ employee }: SidebarProps) {
       <div className="p-3 space-y-2">
         {employee && (
           <div className="px-3 py-2">
-            <p className="text-sm font-medium truncate">{employee.full_name}</p>
+            <p className="text-sm font-medium truncate text-sidebar-foreground">{employee.full_name}</p>
             <p className="text-xs text-muted-foreground capitalize">{employee.role}</p>
           </div>
         )}
-        <Button variant="ghost" className="w-full justify-start text-gray-600" onClick={handleLogout}>
+        <Button variant="ghost" className="w-full justify-start text-muted-foreground" onClick={handleLogout}>
           <LogOut className="w-4 h-4 mr-2" />
           Sign Out
         </Button>
