@@ -14,17 +14,17 @@ export async function POST(request: Request) {
   const auth = await resolveSyncAuth(token, employee_email);
   if ("error" in auth) return auth.error;
 
-  const { error } = await auth.admin.from("project_tasks").insert({
+  const { data, error } = await auth.admin.from("project_tasks").insert({
     project_id: auth.projectId,
     title: title.trim(),
     details: details?.trim() || null,
     due_date: due_date || null,
     status: "todo",
     created_by: auth.attributedTo,
-  });
+  }).select("id").single();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, task_id: data.id });
 }

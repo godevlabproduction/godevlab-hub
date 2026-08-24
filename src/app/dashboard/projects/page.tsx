@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, formatDistanceToNow } from "date-fns";
-import { CalendarDays, CheckSquare2, Copy, ExternalLink, Eye, EyeOff, FolderKanban, KeyRound, Link2, ListTodo, PlusCircle, Radio, RefreshCw, Trash2, X } from "lucide-react";
+import { CalendarDays, CheckSquare2, Copy, ExternalLink, Eye, EyeOff, FolderKanban, GitCommitHorizontal, KeyRound, Link2, ListTodo, PlusCircle, Radio, RefreshCw, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   getProjects, getAllProjectTasks, getProjectUpdates,
@@ -48,11 +48,25 @@ curl -s -X POST ${baseUrl}/api/sync/project \\
   -d '{"token":"${token}","description":"<what this project is>"}'
 \`\`\`
 
-Add a task:
+Report the current commit (run this after each commit you make in this project, so the Hub shows which commit is live):
+\`\`\`bash
+curl -s -X POST ${baseUrl}/api/sync/project \\
+  -H "Content-Type: application/json" \\
+  -d "{\\"token\\":\\"${token}\\",\\"commit_sha\\":\\"$(git rev-parse HEAD)\\",\\"commit_message\\":\\"$(git log -1 --format=%s)\\"}"
+\`\`\`
+
+Add a task (the response includes \`task_id\` — hold onto it to update the task's status later):
 \`\`\`bash
 curl -s -X POST ${baseUrl}/api/sync/task \\
   -H "Content-Type: application/json" \\
   -d '{"token":"${token}","title":"<task title>","details":"<optional details>","due_date":"<optional YYYY-MM-DD>"}'
+\`\`\`
+
+Update a task's status (\`status\` is one of \`todo\`, \`in_progress\`, \`done\`):
+\`\`\`bash
+curl -s -X POST ${baseUrl}/api/sync/task/status \\
+  -H "Content-Type: application/json" \\
+  -d '{"token":"${token}","task_id":"<task_id from above>","status":"done"}'
 \`\`\`
 
 For a note (visible in this project's own Notes section, not the global Notes page), use the progress-update endpoint above with \`"update_type":"note"\`.
@@ -612,6 +626,15 @@ export default function ProjectsPage() {
                   </div>
                   {selectedProject.last_synced_at && (
                     <span className="text-xs">Last synced {formatDistanceToNow(new Date(selectedProject.last_synced_at), { addSuffix: true })}</span>
+                  )}
+                  {selectedProject.last_commit_sha && (
+                    <div className="inline-flex items-center gap-2">
+                      <GitCommitHorizontal className="h-4 w-4 text-brand-700" />
+                      <code className="text-xs">{selectedProject.last_commit_sha.slice(0, 7)}</code>
+                      {selectedProject.last_commit_message && (
+                        <span className="text-xs truncate max-w-[240px]">{selectedProject.last_commit_message}</span>
+                      )}
+                    </div>
                   )}
                 </div>
               </CardContent>
