@@ -33,7 +33,6 @@ const navSections = [
     title: "Apps",
     items: [
       { href: "https://dashboard.gogevgelija.com", label: "GoGevgelija Dashboard", icon: ExternalLink, external: true },
-      { href: "https://dashboard.gogevgelija.com/dashboard/queue", label: "Approval Queue", icon: ExternalLink, external: true },
     ],
   },
 ];
