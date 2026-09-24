@@ -10,6 +10,16 @@
   --color-brand-300: var(--brand-300);
   --color-brand-700: var(--brand-700);
   --color-brand-800: var(--brand-800);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-violet: var(--violet);
+  --color-violet-soft: var(--violet-soft);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
@@ -60,6 +70,12 @@
    picked via [data-accent="1".."5"] (see theme-picker.tsx). Preset 1 (Pitch,
    green) lives in the bare :root/.dark blocks as the default. */
 :root {
+  /* status colors: text-on-glass tuned per theme (see .dark below) */
+  --ok: #15803d; --ok-soft: rgba(21, 128, 61, 0.12);
+  --warn: #b45309; --warn-soft: rgba(180, 83, 9, 0.13);
+  --bad: #be123c; --bad-soft: rgba(190, 18, 60, 0.10);
+  --info: #1d4ed8; --info-soft: rgba(29, 78, 216, 0.10);
+  --violet: #6d28d9; --violet-soft: rgba(109, 40, 217, 0.10);
   --background: #e9eef7;
   --foreground: #10182a;
   --card: #f4f8fe;
@@ -97,8 +113,8 @@
   --brand-50: #e6f5ec;
   --brand-100: #c3e8d3;
   --brand-300: #6fcf97;
-  --brand-700: #2fbf71;
-  --brand-800: #14683e;
+  --brand-700: #14683e;
+  --brand-800: #0f5132;
   --sky-1: #14683e;
   --sky-2: #2fbf71;
   --sky-3: #d8e24f;
@@ -106,6 +122,13 @@
 }
 
 .dark {
+  --brand-700: #2fbf71;
+  --brand-800: #5fe0a0;
+  --ok: #5fe0a0; --ok-soft: rgba(47, 191, 113, 0.14);
+  --warn: #f5b73b; --warn-soft: rgba(245, 183, 59, 0.14);
+  --bad: #ff7d88; --bad-soft: rgba(240, 97, 109, 0.16);
+  --info: #7dbcff; --info-soft: rgba(90, 169, 255, 0.16);
+  --violet: #b39bff; --violet-soft: rgba(179, 155, 255, 0.16);
   --background: #070d1a;
   --foreground: #f0f5fd;
   --card: #121b2e;
@@ -147,10 +170,11 @@
   --accent: #eaf1ff; --accent-foreground: #1d4ed8; --ring: #3b82f6;
   --chart-1: #3b82f6; --chart-2: #1d4ed8; --chart-3: #93c5fd; --chart-4: #6e7e9c; --chart-5: #44536f;
   --sidebar-primary: #1d4ed8; --sidebar-primary-foreground: #ffffff; --sidebar-ring: #3b82f6;
-  --brand-50: #eaf1ff; --brand-100: #c9ddff; --brand-300: #8fb8ff; --brand-700: #3b82f6; --brand-800: #1d4ed8;
+  --brand-50: #eaf1ff; --brand-100: #c9ddff; --brand-300: #8fb8ff; --brand-700: #1d4ed8; --brand-800: #1e40af;
   --sky-1: #123a8c; --sky-2: #2f7df6; --sky-3: #67c4e8; --sky-4: #0b1e3f;
 }
 .dark[data-accent="2"] {
+  --brand-700: #3b82f6; --brand-800: #93c5fd;
   --primary: #3b82f6; --primary-foreground: #071226;
   --accent: rgba(59, 130, 246, 0.16); --accent-foreground: #93c5fd; --ring: #3b82f6;
   --chart-1: #3b82f6; --chart-2: #93c5fd; --chart-3: #1d4ed8; --chart-4: #9aaac6; --chart-5: #f0f5fd;
@@ -163,10 +187,11 @@
   --accent: #f1ebff; --accent-foreground: #6d28d9; --ring: #a78bfa;
   --chart-1: #a78bfa; --chart-2: #6d28d9; --chart-3: #c4b5fd; --chart-4: #6e7e9c; --chart-5: #44536f;
   --sidebar-primary: #6d28d9; --sidebar-primary-foreground: #ffffff; --sidebar-ring: #a78bfa;
-  --brand-50: #f1ebff; --brand-100: #e0d2ff; --brand-300: #c4a8ff; --brand-700: #a78bfa; --brand-800: #6d28d9;
+  --brand-50: #f1ebff; --brand-100: #e0d2ff; --brand-300: #c4a8ff; --brand-700: #6d28d9; --brand-800: #5b21b6;
   --sky-1: #4c1d95; --sky-2: #7c3aed; --sky-3: #c4b5fd; --sky-4: #2e1065;
 }
 .dark[data-accent="3"] {
+  --brand-700: #a78bfa; --brand-800: #c4b5fd;
   --primary: #a78bfa; --primary-foreground: #140b29;
   --accent: rgba(167, 139, 250, 0.16); --accent-foreground: #c4b5fd; --ring: #a78bfa;
   --chart-1: #a78bfa; --chart-2: #c4b5fd; --chart-3: #6d28d9; --chart-4: #9aaac6; --chart-5: #f0f5fd;
@@ -179,10 +204,11 @@
   --accent: #fef3e2; --accent-foreground: #b45309; --ring: #fbbf24;
   --chart-1: #fbbf24; --chart-2: #b45309; --chart-3: #fcd34d; --chart-4: #6e7e9c; --chart-5: #44536f;
   --sidebar-primary: #b45309; --sidebar-primary-foreground: #ffffff; --sidebar-ring: #fbbf24;
-  --brand-50: #fef3e2; --brand-100: #fce1b8; --brand-300: #fcd34d; --brand-700: #fbbf24; --brand-800: #b45309;
+  --brand-50: #fef3e2; --brand-100: #fce1b8; --brand-300: #fcd34d; --brand-700: #b45309; --brand-800: #92400e;
   --sky-1: #b23a1c; --sky-2: #c21f3a; --sky-3: #f0a050; --sky-4: #6e1a0f;
 }
 .dark[data-accent="4"] {
+  --brand-700: #fbbf24; --brand-800: #fcd34d;
   --primary: #fbbf24; --primary-foreground: #271a02;
   --accent: rgba(251, 191, 36, 0.16); --accent-foreground: #fcd34d; --ring: #fbbf24;
   --chart-1: #fbbf24; --chart-2: #fcd34d; --chart-3: #b45309; --chart-4: #9aaac6; --chart-5: #f0f5fd;
@@ -195,10 +221,11 @@
   --accent: #ffecef; --accent-foreground: #be123c; --ring: #fb7185;
   --chart-1: #fb7185; --chart-2: #be123c; --chart-3: #fda4af; --chart-4: #6e7e9c; --chart-5: #44536f;
   --sidebar-primary: #be123c; --sidebar-primary-foreground: #ffffff; --sidebar-ring: #fb7185;
-  --brand-50: #ffecef; --brand-100: #ffd3d9; --brand-300: #fda4af; --brand-700: #fb7185; --brand-800: #be123c;
+  --brand-50: #ffecef; --brand-100: #ffd3d9; --brand-300: #fda4af; --brand-700: #be123c; --brand-800: #9f1239;
   --sky-1: #7a1128; --sky-2: #be123c; --sky-3: #fb7185; --sky-4: #4a0a19;
 }
 .dark[data-accent="5"] {
+  --brand-700: #fb7185; --brand-800: #fda4af;
   --primary: #fb7185; --primary-foreground: #2a0a10;
   --accent: rgba(251, 113, 133, 0.16); --accent-foreground: #fda4af; --ring: #fb7185;
   --chart-1: #fb7185; --chart-2: #fda4af; --chart-3: #be123c; --chart-4: #9aaac6; --chart-5: #f0f5fd;
@@ -217,11 +244,12 @@
   }
 }
 
-/* Chrome/Safari paint the native date-input calendar icon as a fixed dark
-   glyph regardless of page theme, which reads as a stray white patch on the
-   dark glass surface - invert it so it matches. */
-.dark input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1) brightness(1.4);
+/* Native controls (date pickers, select popups, scrollbars) follow the theme. */
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
 }
 
 /* ==== ambient blobs: coachfio's "Pitch" sky palette (frontend/hub-dark.css
@@ -327,4 +355,9 @@
     inset 1px 0 0 rgba(220, 235, 255, 0.09),
     inset -1px 0 0 rgba(220, 235, 255, 0.09),
     0 18px 48px rgba(2, 8, 22, 0.38);
+}
+
+/* Tiles/rows sit inside or beside panels and want a tighter corner. */
+.glass-panel--tile {
+  border-radius: 20px;
 }

@@ -1,755 +1,259 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, formatDistanceToNow } from "date-fns";
-import { CalendarDays, CheckSquare2, Copy, ExternalLink, Eye, EyeOff, FolderKanban, GitCommitHorizontal, KeyRound, Link2, ListTodo, PlusCircle, Radio, RefreshCw, Trash2, X } from "lucide-react";
+import { format, formatDistanceToNowStrict, parseISO } from "date-fns";
+import { Plus, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  getProjects, getAllProjectTasks, getProjectUpdates, getProjectAssignments,
-  createProject, updateProject, createProjectTask, updateProjectTask,
-  deleteProjectTask, createProjectUpdate, deleteProjectUpdate,
-  getProjectCredentials, createProjectCredential, deleteProjectCredential,
-  getSyncTokenStatus, generateSyncToken, deleteProject,
+  createProject, getAllProjectTasks, getClients, getEmployeeTasks, getEmployees,
+  getOpenBlockers, getProjectAssignments, getProjects,
 } from "@/lib/supabase/queries";
 import { useCurrentEmployee } from "@/hooks/use-employee";
-import type { ProjectStatus, ProjectPriority, ProjectLink, TaskStatus } from "@/types";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { buildPortfolio, type PortfolioRow } from "@/lib/portfolio";
+import { AvatarStack, HealthPill, KpiTile, ProgressBar, healthTone } from "@/components/hub-ui";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { fieldCls, labelCls } from "@/components/project/form-styles";
 import { cn } from "@/lib/utils";
 
-const selectCls = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+type Filter = "all" | "active" | "risk" | "backlog" | "completed";
 
-function buildSyncSnippet(projectTitle: string, token: string, baseUrl: string): string {
-  return `## GoDevLab Hub — live sync
+const slugify = (s: string) =>
+  s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 
-This project (\`${projectTitle}\`) is registered with GoDevLab Hub. This token is yours alone — every update it posts is automatically attributed to you, so there's no field to fill in for who's working. After finishing each meaningful task, milestone, bug fix, or decision, post a progress update:
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-\`\`\`bash
-curl -s -X POST ${baseUrl}/api/sync/update \\
-  -H "Content-Type: application/json" \\
-  -d '{"token":"${token}","title":"<short title>","details":"<1-3 sentences on what changed>","update_type":"progress"}'
-\`\`\`
-
-Use \`update_type\`: \`"progress"\` (default), \`"blocker"\`, \`"decision"\`, or \`"note"\`.
-
-You can also keep the project's own info current as you learn more:
-
-Set/replace the project description:
-\`\`\`bash
-curl -s -X POST ${baseUrl}/api/sync/project \\
-  -H "Content-Type: application/json" \\
-  -d '{"token":"${token}","description":"<what this project is>"}'
-\`\`\`
-
-Report the current commit (run this after each commit you make in this project, so the Hub shows which commit is live):
-\`\`\`bash
-curl -s -X POST ${baseUrl}/api/sync/project \\
-  -H "Content-Type: application/json" \\
-  -d "{\\"token\\":\\"${token}\\",\\"commit_sha\\":\\"$(git rev-parse HEAD)\\",\\"commit_message\\":\\"$(git log -1 --format=%s)\\"}"
-\`\`\`
-
-Add a task (the response includes \`task_id\` — hold onto it to update the task's status later):
-\`\`\`bash
-curl -s -X POST ${baseUrl}/api/sync/task \\
-  -H "Content-Type: application/json" \\
-  -d '{"token":"${token}","title":"<task title>","details":"<optional details>","due_date":"<optional YYYY-MM-DD>"}'
-\`\`\`
-
-Update a task's status (\`status\` is one of \`todo\`, \`in_progress\`, \`done\`):
-\`\`\`bash
-curl -s -X POST ${baseUrl}/api/sync/task/status \\
-  -H "Content-Type: application/json" \\
-  -d '{"token":"${token}","task_id":"<task_id from above>","status":"done"}'
-\`\`\`
-
-Lost track of a task's id? List every task on this project (id, title, status):
-\`\`\`bash
-curl -s "${baseUrl}/api/sync/tasks?token=${token}"
-\`\`\`
-
-Delete a task you created (e.g. a throwaway/test one):
-\`\`\`bash
-curl -s -X POST ${baseUrl}/api/sync/task/delete \\
-  -H "Content-Type: application/json" \\
-  -d '{"token":"${token}","task_id":"<task_id>"}'
-\`\`\`
-
-For a note (visible in this project's own Notes section, not the global Notes page), use the progress-update endpoint above with \`"update_type":"note"\`.
-
-Task timing matters. When you're handed a batch of work items — a checklist, an audit's findings, a multi-item list — create a \`/api/sync/task\` entry for every item before writing any code for it. Mark each one done via \`/api/sync/task/status\` right when it's actually verified working, not saved up for a batch update at the end. A single one-off request doesn't need this ceremony; a list does.`;
+function dueLine(row: PortfolioRow) {
+  const due = row.project.due_date;
+  if (!due) return { date: "No due date", note: "", late: false };
+  const date = format(parseISO(due), "d MMM yyyy");
+  if (row.health.state === "done") return { date, note: "", late: false };
+  const left = row.health.daysLeft ?? 0;
+  if (left < 0) return { date, note: `${plural(-left, "day")} overdue`, late: true };
+  if (left === 0) return { date, note: "due today", late: false };
+  return { date, note: `in ${plural(left, "day")}`, late: false };
 }
-
-const statusStyles: Record<ProjectStatus, string> = {
-  backlog: "border-border bg-white/10 text-foreground",
-  active: "border-sky-400/30 bg-sky-400/10 text-sky-300",
-  review: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-  completed: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-};
-const taskStyles: Record<TaskStatus, string> = {
-  todo: "border-border bg-white/10 text-foreground",
-  in_progress: "border-sky-400/30 bg-sky-400/10 text-sky-300",
-  done: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-};
 
 export default function ProjectsPage() {
   const supabase = createClient();
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: employee } = useCurrentEmployee();
-  const isAdmin = employee?.role === "admin";
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
-  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const { data: me } = useCurrentEmployee();
 
-  const [projectTitle, setProjectTitle] = useState("");
-  const [projectSlug, setProjectSlug] = useState("");
-  const [projectClientName, setProjectClientName] = useState("");
-  const [projectDescription, setProjectDescription] = useState("");
-  const [projectStatus, setProjectStatus] = useState<ProjectStatus>("active");
-  const [projectPriority, setProjectPriority] = useState<ProjectPriority>("medium");
-  const [projectDueDate, setProjectDueDate] = useState("");
-  const [projectRepoPath, setProjectRepoPath] = useState("");
-  const [projectRepoUrl, setProjectRepoUrl] = useState("");
-  const [projectStack, setProjectStack] = useState("");
+  const { data: projects = [], isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => getProjects(supabase), refetchInterval: 30000 });
+  const { data: tasks = [] } = useQuery({ queryKey: ["project-tasks"], queryFn: () => getAllProjectTasks(supabase) });
+  const { data: employeeTasks = [] } = useQuery({ queryKey: ["employee-tasks"], queryFn: () => getEmployeeTasks(supabase) });
+  const { data: assignments = [] } = useQuery({ queryKey: ["project-assignments"], queryFn: () => getProjectAssignments(supabase) });
+  const { data: employees = [] } = useQuery({ queryKey: ["employees"], queryFn: () => getEmployees(supabase) });
+  const { data: blockers = [] } = useQuery({ queryKey: ["open-blockers"], queryFn: () => getOpenBlockers(supabase) });
+  const { data: clients = [] } = useQuery({ queryKey: ["clients"], queryFn: () => getClients(supabase) });
 
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskDetails, setTaskDetails] = useState("");
-  const [taskDueDate, setTaskDueDate] = useState("");
+  const [filter, setFilter] = useState<Filter>("active");
+  const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [due, setDue] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const [addingLink, setAddingLink] = useState(false);
-  const [linkLabel, setLinkLabel] = useState("");
-  const [linkUrl, setLinkUrl] = useState("");
-
-  const [addingCred, setAddingCred] = useState(false);
-  const [credService, setCredService] = useState("");
-  const [credUsername, setCredUsername] = useState("");
-  const [credPassword, setCredPassword] = useState("");
-  const [syncToken, setSyncToken] = useState<string | null>(null);
-  const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false);
-  const [deleteProjectDialogOpen, setDeleteProjectDialogOpen] = useState(false);
-  const [syncGenerateError, setSyncGenerateError] = useState<string | null>(null);
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
-  const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
-
-  function copyToClipboard(text: string, key: string) {
-    navigator.clipboard.writeText(text);
-    setCopiedIndex(key);
-    setTimeout(() => setCopiedIndex(null), 1500);
-  }
-
-  const [noteText, setNoteText] = useState("");
-
-  const { data: projects = [] } = useQuery({ queryKey: ["projects"], queryFn: () => getProjects(supabase) });
-  const { data: allTasks = [] } = useQuery({ queryKey: ["project-tasks"], queryFn: () => getAllProjectTasks(supabase) });
-  const { data: projectAssignments = [] } = useQuery({ queryKey: ["project-assignments"], queryFn: () => getProjectAssignments(supabase) });
-  const { data: projectUpdates = [] } = useQuery({
-    queryKey: ["project-updates", selectedProjectId],
-    queryFn: () => getProjectUpdates(supabase, selectedProjectId!),
-    enabled: Boolean(selectedProjectId),
-  });
-
-  const statusOrder: Record<ProjectStatus, number> = { active: 0, review: 1, backlog: 2, completed: 3 };
-  const sortedProjects = useMemo(() => [...projects].sort((a, b) => {
-    const byStatus = statusOrder[a.status] - statusOrder[b.status];
-    if (byStatus !== 0) return byStatus;
-    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-  }), [projects]);
-
-  useEffect(() => {
-    if (projects.length === 0) { setSelectedProjectId(null); return; }
-    if (!selectedProjectId || !projects.some(p => p.id === selectedProjectId)) {
-      setSelectedProjectId(sortedProjects[0].id);
-    }
-  }, [projects, sortedProjects, selectedProjectId]);
-
-  const selectedProject = useMemo(() => projects.find(p => p.id === selectedProjectId) ?? null, [projects, selectedProjectId]);
-  const isAssignedToSelected = Boolean(
-    employee && projectAssignments.some(a => a.project_id === selectedProjectId && a.employee_id === employee.id)
+  const { rows } = useMemo(
+    () => buildPortfolio({ projects, tasks, employeeTasks, assignments, employees, blockers, now: new Date() }),
+    [projects, tasks, employeeTasks, assignments, employees, blockers],
   );
-  const canManageSync = isAdmin || isAssignedToSelected;
-  const { data: projectCredentials = [] } = useQuery({
-    queryKey: ["project_credentials", selectedProjectId],
-    queryFn: () => getProjectCredentials(supabase, selectedProjectId!),
-    enabled: Boolean(selectedProjectId),
-  });
-  const { data: syncStatus } = useQuery({
-    queryKey: ["sync-token-status", selectedProjectId],
-    queryFn: () => getSyncTokenStatus(selectedProjectId!),
-    enabled: Boolean(selectedProjectId),
-  });
-  useEffect(() => {
-    setSyncToken(null);
-    setSyncGenerateError(null);
-  }, [selectedProjectId]);
-  const selectedTasks = useMemo(() => allTasks.filter(t => t.project_id === selectedProjectId), [allTasks, selectedProjectId]);
-  const taskStats = useMemo(() => {
-    const done = selectedTasks.filter(t => t.status === "done").length;
-    const inProgress = selectedTasks.filter(t => t.status === "in_progress").length;
-    const total = selectedTasks.length;
-    const isCompleted = selectedProject?.status === "completed";
-    return { total, done, inProgress, todo: total - done - inProgress, completion: isCompleted ? 100 : (total === 0 ? 0 : Math.round((done / total) * 100)) };
-  }, [selectedTasks, selectedProject?.status]);
 
-  const createProjectMutation = useMutation({
-    mutationFn: () => createProject(supabase, {
-      slug: projectSlug || projectTitle.toLowerCase().replace(/\s+/g, "-"),
-      title: projectTitle,
-      client_name: projectClientName || undefined,
-      description: projectDescription || undefined,
-      status: projectStatus,
-      priority: projectPriority,
-      due_date: projectDueDate || undefined,
-      repo_path: projectRepoPath || undefined,
-      repo_url: projectRepoUrl || undefined,
-      stack: projectStack ? projectStack.split(",").map(s => s.trim()).filter(Boolean) : [],
-      created_by: employee!.id,
-    }),
-    onSuccess: (project) => {
-      queryClient.setQueryData<typeof project[]>(["projects"], (old) => [project, ...(old ?? [])]);
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      setSelectedProjectId(project.id);
-      setProjectTitle(""); setProjectSlug(""); setProjectClientName(""); setProjectDescription("");
-      setProjectStatus("active"); setProjectPriority("medium"); setProjectDueDate("");
-      setProjectRepoPath(""); setProjectRepoUrl(""); setProjectStack("");
-      setProjectDialogOpen(false);
-      generateSyncTokenMutation.mutate(project.id);
-    },
+  const counts: Record<Filter, number> = {
+    all: rows.length,
+    active: rows.filter(r => r.project.status === "active" || r.project.status === "review").length,
+    risk: rows.filter(r => r.health.state === "risk" || r.health.state === "late").length,
+    backlog: rows.filter(r => r.project.status === "backlog").length,
+    completed: rows.filter(r => r.project.status === "completed").length,
+  };
+
+  const q = search.trim().toLowerCase();
+  const visible = rows.filter(r => {
+    const inFilter =
+      filter === "all" ? true
+      : filter === "active" ? r.project.status === "active" || r.project.status === "review"
+      : filter === "risk" ? r.health.state === "risk" || r.health.state === "late"
+      : r.project.status === filter;
+    if (!inFilter) return false;
+    if (!q) return true;
+    return `${r.project.title} ${r.project.client?.name ?? r.project.client_name ?? ""}`.toLowerCase().includes(q);
   });
 
-  const updateProjectMutation = useMutation({
-    mutationFn: (input: Parameters<typeof updateProject>[2] & { projectId: string }) => {
-      const { projectId, ...rest } = input;
-      return updateProject(supabase, projectId, rest);
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["projects"] }),
-  });
-
-  const createCredentialMutation = useMutation({
-    mutationFn: (input: { service: string; username: string; password: string }) =>
-      createProjectCredential(supabase, { project_id: selectedProject!.id, created_by: employee!.id, ...input }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project_credentials", selectedProjectId] }),
-  });
-  const deleteCredentialMutation = useMutation({
-    mutationFn: (credentialId: string) => deleteProjectCredential(supabase, credentialId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project_credentials", selectedProjectId] }),
-  });
-  const generateSyncTokenMutation = useMutation({
-    mutationFn: (projectId?: string) => generateSyncToken(projectId ?? selectedProject!.id),
-    onSuccess: (data) => {
-      setSyncToken(data.token);
-      setRegenerateDialogOpen(false);
-      setSyncGenerateError(null);
-      queryClient.invalidateQueries({ queryKey: ["sync-token-status", data.projectId] });
-    },
-    onError: (err: Error) => setSyncGenerateError(err.message),
-  });
-
-  const deleteProjectMutation = useMutation({
-    mutationFn: (projectId: string) => deleteProject(supabase, projectId),
-    onSuccess: () => {
-      setDeleteProjectDialogOpen(false);
-      setSelectedProjectId(null);
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-    },
-  });
-
-  const createTaskMutation = useMutation({
-    mutationFn: () => createProjectTask(supabase, { project_id: selectedProjectId!, title: taskTitle, details: taskDetails || undefined, due_date: taskDueDate || undefined, created_by: employee!.id }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["project-tasks"] });
-      if (selectedProject) {
-        const updates: Parameters<typeof updateProject>[2] = {};
-        if (selectedProject.status === "completed" || selectedProject.status === "backlog") {
-          updates.status = "active";
-        }
-        const allDates = [...selectedTasks.map(t => t.due_date), taskDueDate || null].filter(Boolean) as string[];
-        if (allDates.length > 0) {
-          updates.due_date = allDates.sort().at(-1)!;
-        }
-        if (Object.keys(updates).length > 0) {
-          await updateProject(supabase, selectedProject.id, updates);
-          queryClient.invalidateQueries({ queryKey: ["projects"] });
+  const create = useMutation({
+    mutationFn: async () => {
+      const picked = clients.find(c => c.id === clientId);
+      const base = slugify(title) || "project";
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const slug = attempt === 0 ? base : `${base}-${Math.random().toString(36).slice(2, 6)}`;
+        try {
+          return await createProject(supabase, {
+            slug,
+            title: title.trim(),
+            client_id: picked?.id ?? null,
+            client_name: picked?.name,
+            status: "active",
+            priority: "medium",
+            due_date: due || undefined,
+            created_by: me!.id,
+          });
+        } catch (e) {
+          if ((e as { code?: string }).code !== "23505") throw e;
         }
       }
-      setTaskTitle(""); setTaskDetails(""); setTaskDueDate("");
+      throw new Error("Couldn't create a unique link for this project. Try a different title.");
     },
-  });
-
-  const updateTaskMutation = useMutation({
-    mutationFn: ({ taskId, status }: { taskId: string; status: TaskStatus }) => updateProjectTask(supabase, taskId, { status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-tasks"] }),
-  });
-
-  const deleteTaskMutation = useMutation({
-    mutationFn: (taskId: string) => deleteProjectTask(supabase, taskId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["project-tasks"] }),
-  });
-
-  const createUpdateMutation = useMutation({
-    mutationFn: () => createProjectUpdate(supabase, {
-      project_id: selectedProjectId!,
-      title: noteText.slice(0, 80),
-      details: noteText,
-      update_type: "note",
-      created_by: employee!.id,
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-updates", selectedProjectId] });
-      queryClient.invalidateQueries({ queryKey: ["recent-updates"] });
-      setNoteText("");
+    onSuccess: project => {
+      queryClient.setQueryData<typeof projects>(["projects"], old => [project, ...(old ?? [])]);
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      setDialogOpen(false);
+      setTitle(""); setClientId(""); setDue("");
+      router.push(`/dashboard/projects/${project.id}${me?.role === "admin" ? "#sync" : ""}`);
     },
+    onError: (e: Error) => setError(e.message || "Couldn't create the project."),
   });
 
-  const deleteUpdateMutation = useMutation({
-    mutationFn: (updateId: string) => deleteProjectUpdate(supabase, updateId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-updates", selectedProjectId] });
-      queryClient.invalidateQueries({ queryKey: ["recent-updates"] });
-    },
-  });
-
-  const canCreate = Boolean(projectTitle.trim() && employee);
-  const canCreateTask = Boolean(selectedProjectId && taskTitle.trim() && employee);
-  const canManage = (createdBy: string) => employee?.role === "admin" || createdBy === employee?.id;
+  const chips: { key: Filter; label: string }[] = [
+    { key: "active", label: "Active" },
+    { key: "risk", label: "At risk" },
+    { key: "backlog", label: "Backlog" },
+    { key: "completed", label: "Completed" },
+    { key: "all", label: "All" },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Projects</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Create projects, break them into tasks, and log progress.</p>
+          <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">Projects</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Every project with its health, progress, team and next deadline.</p>
         </div>
-        <Dialog open={projectDialogOpen} onOpenChange={(open) => setProjectDialogOpen(open)}>
-          <DialogTrigger className={cn(buttonVariants(), "bg-brand-700 hover:bg-brand-800")}>
-            <PlusCircle className="mr-2 h-4 w-4" />New Project
-          </DialogTrigger>
-          <DialogContent className="max-w-lg">
-            <DialogHeader><DialogTitle>Create Project</DialogTitle></DialogHeader>
-            <form onSubmit={e => { e.preventDefault(); if (canCreate) createProjectMutation.mutate(); }} className="space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Title</label>
-                <Input autoFocus value={projectTitle} onChange={e => setProjectTitle(e.target.value)} placeholder="Wedding Photo Upload" />
+        <Button type="button" onClick={() => { setError(null); setDialogOpen(true); }}>
+          <Plus className="mr-2 h-4 w-4" />New project
+        </Button>
+      </div>
+
+      <section aria-label="Project totals" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <KpiTile label="Active" value={counts.active} sub={`${counts.all} total`} />
+        <KpiTile label="At risk or late" value={counts.risk} valueClassName={counts.risk > 0 ? "text-warn" : undefined} sub={counts.risk > 0 ? "Worth a look" : "All on track"} />
+        <KpiTile label="Backlog" value={counts.backlog} sub="Not started yet" />
+        <KpiTile label="Completed" value={counts.completed} sub="Delivered" />
+      </section>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div role="group" aria-label="Filter projects" className="flex flex-wrap gap-2">
+          {chips.map(c => (
+            <button
+              key={c.key}
+              type="button"
+              aria-pressed={filter === c.key}
+              onClick={() => setFilter(c.key)}
+              className={cn(
+                "flex h-8 items-center gap-2 rounded-full border px-3.5 font-mono text-xs font-medium transition-colors",
+                filter === c.key ? "border-foreground bg-foreground text-background" : "border-foreground/15 text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+              )}
+            >
+              {c.label}
+              <span className={cn("text-[11px]", filter === c.key ? "opacity-70" : "text-muted-foreground")}>{counts[c.key]}</span>
+            </button>
+          ))}
+        </div>
+        <label className="relative block w-full max-w-xs">
+          <span className="sr-only">Search projects</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search projects or clients" className="h-9 rounded-full pl-9" />
+        </label>
+      </div>
+
+      {isLoading && <p className="text-sm text-muted-foreground">Loading projects…</p>}
+      {!isLoading && visible.length === 0 && (
+        <p className="glass-panel glass-panel--tile p-6 text-sm text-muted-foreground">
+          {rows.length === 0 ? "No projects yet. Create the first one." : "No projects match this view."}
+        </p>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {visible.map(r => {
+          const d = dueLine(r);
+          return (
+            <Link
+              key={r.project.id}
+              href={`/dashboard/projects/${r.project.id}`}
+              className="glass-panel glass-panel--tile group flex flex-col gap-4 p-5 outline-none transition-shadow hover:ring-1 hover:ring-foreground/20 focus-visible:ring-2 focus-visible:ring-ring/60"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-[15px] font-semibold text-foreground group-hover:text-primary">{r.project.title}</h2>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {r.project.client?.name ?? r.project.client_name ?? "Internal"} · <span className="capitalize">{r.project.priority}</span> priority
+                  </p>
+                </div>
+                <HealthPill state={r.health.state} label={r.health.label} title={r.health.reasons.join(" · ")} />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Everything else (client, description, status, due date, repo, stack) can be added afterward from the project itself.
-              </p>
-              <Button type="submit" className="w-full bg-brand-700 hover:bg-brand-800" disabled={!canCreate || createProjectMutation.isPending}>
-                {createProjectMutation.isPending ? "Creating..." : "Create Project"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+
+              <div>
+                <div className="mb-1.5 flex items-baseline justify-between">
+                  <span className="font-mono text-[13px] font-semibold text-foreground">{Math.round(r.health.progress * 100)}%</span>
+                  <span className="text-xs text-muted-foreground">{r.health.done}/{r.health.total} tasks</span>
+                </div>
+                <ProgressBar value={r.health.progress} tone={healthTone(r.health.state)} />
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-3.5">
+                <AvatarStack people={r.team} />
+                <div className="text-right">
+                  <p className="text-[12.5px] font-semibold text-foreground">{d.date}</p>
+                  {d.note && <p className={cn("text-xs", d.late ? "font-semibold text-bad" : "text-muted-foreground")}>{d.note}</p>}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className={cn("size-1.5 rounded-full", r.project.last_synced_at ? (r.stale ? "bg-warn" : "bg-ok") : "bg-muted-foreground")} aria-hidden />
+                  {r.project.last_synced_at ? `Synced ${formatDistanceToNowStrict(parseISO(r.project.last_synced_at), { addSuffix: true })}` : "Never synced"}
+                </span>
+                {r.health.openBlockers > 0 && <span className="font-semibold text-warn">{plural(r.health.openBlockers, "blocker")}</span>}
+              </div>
+            </Link>
+          );
+        })}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle className="text-base">Project List</CardTitle>
-            <CardDescription>Select a project to review its tasks and activity.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {sortedProjects.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-white/5 px-4 py-8 text-center text-sm text-muted-foreground">No projects yet.</div>
-            ) : sortedProjects.map(project => {
-              const pTasks = allTasks.filter(t => t.project_id === project.id);
-              const pDone = pTasks.filter(t => t.status === "done").length;
-              const isActive = selectedProjectId === project.id;
-              return (
-                <button key={project.id} type="button" onClick={() => setSelectedProjectId(project.id)}
-                  className={`w-full rounded-2xl border p-4 text-left transition-colors ${isActive ? "border-primary/40 bg-primary/10" : "border-border bg-white/5 hover:border-white/20"}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-foreground">{project.title}</p>
-                      {project.client_name && <p className="mt-0.5 text-xs text-muted-foreground">{project.client_name}</p>}
-                      <p className="mt-1 text-xs text-muted-foreground line-clamp-1">{project.description || "No description."}</p>
-                    </div>
-                    <Badge variant="outline" className={statusStyles[project.status]}>{project.status}</Badge>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                    <span className="capitalize">{project.priority} priority</span>
-                    <span>{pDone}/{pTasks.length} done</span>
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        {selectedProject ? (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <FolderKanban className="h-4 w-4 text-brand-700" />
-                      <CardTitle>{selectedProject.title}</CardTitle>
-                    </div>
-                    {selectedProject.client_name && <p className="mt-1 text-sm text-muted-foreground">{selectedProject.client_name}</p>}
-                    <CardDescription className="mt-1">{selectedProject.description || "No description."}</CardDescription>
-                    {selectedProject.stack.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {selectedProject.stack.map(s => <Badge key={s} variant="outline" className="border-border bg-white/5 text-xs text-muted-foreground">{s}</Badge>)}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-start gap-3">
-                    {[{ label: "Tasks", value: taskStats.total }, { label: "Active", value: taskStats.inProgress }, { label: "Done", value: taskStats.done }].map(s => (
-                      <div key={s.label} className="rounded-xl border border-border px-4 py-3">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground whitespace-nowrap">{s.label}</p>
-                        <p className="mt-2 text-xl font-semibold text-foreground">{s.value}</p>
-                      </div>
-                    ))}
-                    <Dialog open={deleteProjectDialogOpen} onOpenChange={setDeleteProjectDialogOpen}>
-                      <DialogTrigger className={cn(buttonVariants({ variant: "ghost" }), "h-10 w-10 shrink-0 p-0 text-muted-foreground hover:text-red-600")}>
-                        <Trash2 className="h-4 w-4" />
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader><DialogTitle>Delete project?</DialogTitle></DialogHeader>
-                        <p className="text-sm text-muted-foreground">
-                          This permanently deletes &quot;{selectedProject.title}&quot; and everything attached to it (tasks, updates, credentials, links, sync token). This cannot be undone.
-                        </p>
-                        <div className="flex justify-end gap-2">
-                          <Button type="button" variant="ghost" onClick={() => setDeleteProjectDialogOpen(false)}>Cancel</Button>
-                          <Button
-                            type="button"
-                            className="bg-red-600 hover:bg-red-700"
-                            onClick={() => deleteProjectMutation.mutate(selectedProject.id)}
-                            disabled={deleteProjectMutation.isPending}
-                          >
-                            {deleteProjectMutation.isPending ? "Deleting..." : "Delete permanently"}
-                          </Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium">Status</label>
-                    <select value={selectedProject.status} onChange={e => updateProjectMutation.mutate({ projectId: selectedProject.id, status: e.target.value as ProjectStatus })} className={selectCls}>
-                      {(["backlog","active","review","completed"] as ProjectStatus[]).map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-muted-foreground" style={selectedProject.status === "completed" ? { opacity: 0.5 } : {}}>Priority</label>
-                    <select disabled={selectedProject.status === "completed"} value={selectedProject.priority} onChange={e => updateProjectMutation.mutate({ projectId: selectedProject.id, priority: e.target.value as ProjectPriority })} className={selectCls + (selectedProject.status === "completed" ? " opacity-50 cursor-not-allowed" : "")}>
-                      {(["low","medium","high"] as ProjectPriority[]).map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-muted-foreground" style={selectedProject.status === "completed" ? { opacity: 0.5 } : {}}>Due date</label>
-                    <Input disabled={selectedProject.status === "completed"} type="date" value={selectedProject.due_date ?? ""} onChange={e => updateProjectMutation.mutate({ projectId: selectedProject.id, due_date: e.target.value || null })} className={selectedProject.status === "completed" ? "opacity-50 cursor-not-allowed" : ""} />
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Completion</span>
-                    <span className="font-medium text-foreground">{taskStats.completion}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-white/10">
-                    <div className="h-2 rounded-full bg-brand-700" style={{ width: `${taskStats.completion}%` }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                      <Link2 className="h-4 w-4 text-brand-700" />
-                      Links
-                    </div>
-                    {!addingLink && (
-                      <button type="button" onClick={() => setAddingLink(true)} className="inline-flex items-center gap-1 text-xs text-brand-700 hover:text-brand-800 font-medium">
-                        <PlusCircle className="h-3.5 w-3.5" /> Add link
-                      </button>
-                    )}
-                  </div>
-                  {addingLink && (
-                    <form onSubmit={e => {
-                      e.preventDefault();
-                      if (!linkLabel.trim() || !linkUrl.trim()) return;
-                      const updated: ProjectLink[] = [...(selectedProject.links ?? []), { label: linkLabel.trim(), url: linkUrl.trim() }];
-                      updateProjectMutation.mutate({ projectId: selectedProject.id, links: updated });
-                      setLinkLabel(""); setLinkUrl(""); setAddingLink(false);
-                    }} className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-white/5 p-3">
-                      <Input autoFocus value={linkLabel} onChange={e => setLinkLabel(e.target.value)} placeholder="Label (e.g. Vercel)" className="h-8 w-32 text-sm" />
-                      <Input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://..." className="h-8 flex-1 min-w-[180px] text-sm" />
-                      <Button type="submit" size="sm" disabled={!linkLabel.trim() || !linkUrl.trim()}>Save</Button>
-                      <button type="button" onClick={() => { setAddingLink(false); setLinkLabel(""); setLinkUrl(""); }} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-                    </form>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {(selectedProject.links ?? []).length === 0 && !addingLink && (
-                      <span className="text-xs text-muted-foreground">No links yet.</span>
-                    )}
-                    {(selectedProject.links ?? []).map((link, i) => (
-                      <div key={i} className="group flex items-center gap-1 rounded-lg border border-border bg-white/5 px-3 py-1.5 text-sm text-foreground hover:border-primary/40 hover:bg-primary/10 transition-colors">
-                        <a href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 font-medium">
-                          <ExternalLink className="h-3.5 w-3.5 text-brand-700" />
-                          {link.label}
-                        </a>
-                        <button type="button" onClick={() => {
-                          const updated = (selectedProject.links ?? []).filter((_, idx) => idx !== i);
-                          updateProjectMutation.mutate({ projectId: selectedProject.id, links: updated });
-                        }} className="ml-1 hidden group-hover:block text-muted-foreground hover:text-red-500">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                      <KeyRound className="h-4 w-4 text-brand-700" />
-                      Logins & Passwords
-                    </div>
-                    {!addingCred && (
-                      <button type="button" onClick={() => setAddingCred(true)} className="inline-flex items-center gap-1 text-xs text-brand-700 hover:text-brand-800 font-medium">
-                        <PlusCircle className="h-3.5 w-3.5" /> Add login
-                      </button>
-                    )}
-                  </div>
-                  {addingCred && (
-                    <form onSubmit={e => {
-                      e.preventDefault();
-                      if (!credService.trim() || !credUsername.trim() || !credPassword.trim()) return;
-                      createCredentialMutation.mutate({ service: credService.trim(), username: credUsername.trim(), password: credPassword.trim() });
-                      setCredService(""); setCredUsername(""); setCredPassword(""); setAddingCred(false);
-                    }} className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-white/5 p-3">
-                      <Input autoFocus value={credService} onChange={e => setCredService(e.target.value)} placeholder="Service (e.g. Supabase)" className="h-8 w-32 text-sm" />
-                      <Input value={credUsername} onChange={e => setCredUsername(e.target.value)} placeholder="Username / Email" className="h-8 flex-1 min-w-[160px] text-sm" />
-                      <Input value={credPassword} onChange={e => setCredPassword(e.target.value)} placeholder="Password" type="password" className="h-8 flex-1 min-w-[160px] text-sm" />
-                      <Button type="submit" size="sm" disabled={!credService.trim() || !credUsername.trim() || !credPassword.trim()}>Save</Button>
-                      <button type="button" onClick={() => { setAddingCred(false); setCredService(""); setCredUsername(""); setCredPassword(""); }} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
-                    </form>
-                  )}
-                  {projectCredentials.length === 0 && !addingCred && (
-                    <p className="text-xs text-muted-foreground">No logins saved yet.</p>
-                  )}
-                  <div className="space-y-2">
-                    {projectCredentials.map(cred => (
-                      <div key={cred.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-white/5 px-4 py-2.5 text-sm">
-                        <span className="w-28 shrink-0 font-medium text-foreground truncate">{cred.service}</span>
-                        <div className="flex flex-1 items-center gap-1.5 min-w-[140px]">
-                          <span className="truncate text-muted-foreground">{cred.username}</span>
-                          <button type="button" onClick={() => copyToClipboard(cred.username, `u${cred.id}`)} className="shrink-0 text-muted-foreground hover:text-brand-700">
-                            {copiedIndex === `u${cred.id}` ? <span className="text-xs text-green-600">Copied</span> : <Copy className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                        <div className="flex flex-1 items-center gap-1.5 min-w-[140px]">
-                          <span className="truncate font-mono text-muted-foreground">{visiblePasswords[cred.id] ? cred.password : "••••••••"}</span>
-                          <button type="button" onClick={() => setVisiblePasswords(v => ({ ...v, [cred.id]: !v[cred.id] }))} className="shrink-0 text-muted-foreground hover:text-foreground">
-                            {visiblePasswords[cred.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                          </button>
-                          <button type="button" onClick={() => copyToClipboard(cred.password, `p${cred.id}`)} className="shrink-0 text-muted-foreground hover:text-brand-700">
-                            {copiedIndex === `p${cred.id}` ? <span className="text-xs text-green-600">Copied</span> : <Copy className="h-3.5 w-3.5" />}
-                          </button>
-                        </div>
-                        <button type="button" onClick={() => deleteCredentialMutation.mutate(cred.id)} className="shrink-0 text-muted-foreground hover:text-red-500">
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {canManageSync && (
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-                        <Radio className="h-4 w-4 text-brand-700" />
-                        Live Sync
-                      </div>
-                    </div>
-                    {!syncStatus?.exists && !syncToken && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="bg-brand-700 hover:bg-brand-800"
-                        onClick={() => generateSyncTokenMutation.mutate(undefined)}
-                        disabled={generateSyncTokenMutation.isPending}
-                      >
-                        {generateSyncTokenMutation.isPending ? "Setting up..." : "Set up live sync"}
-                      </Button>
-                    )}
-                    {syncGenerateError && <p className="mt-2 text-xs text-red-600">{syncGenerateError}</p>}
-                    {syncToken && (() => {
-                      const snippet = buildSyncSnippet(
-                        selectedProject.title,
-                        syncToken,
-                        typeof window !== "undefined" ? window.location.origin : ""
-                      );
-                      return (
-                      <div className="space-y-2 rounded-xl border border-border bg-white/5 p-3">
-                        <p className="text-xs text-muted-foreground">
-                          Paste this into the project&apos;s CLAUDE.md. This token is shown only once — copy it now.
-                        </p>
-                        <Textarea readOnly rows={8} value={snippet} className="font-mono text-xs" />
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => copyToClipboard(snippet, "sync-snippet")}
-                        >
-                          {copiedIndex === "sync-snippet" ? <span className="text-xs text-green-600">Copied</span> : <><Copy className="mr-1.5 h-3.5 w-3.5" />Copy snippet</>}
-                        </Button>
-                      </div>
-                      );
-                    })()}
-                    {syncStatus?.exists && !syncToken && (
-                      <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white/5 px-4 py-2.5 text-sm">
-                        <span className="text-xs text-muted-foreground">
-                          Live sync active — {syncStatus.regeneratedAt
-                            ? `regenerated ${formatDistanceToNow(new Date(syncStatus.regeneratedAt), { addSuffix: true })}`
-                            : `set up ${formatDistanceToNow(new Date(syncStatus.createdAt!), { addSuffix: true })}`}
-                        </span>
-                        <Dialog open={regenerateDialogOpen} onOpenChange={setRegenerateDialogOpen}>
-                          <DialogTrigger className={cn(buttonVariants(), "h-8 px-3 text-xs bg-white/5 border border-border text-foreground hover:bg-white/10")}>
-                            <RefreshCw className="mr-1.5 h-3.5 w-3.5 inline" />Regenerate
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader><DialogTitle>Regenerate sync token?</DialogTitle></DialogHeader>
-                            <p className="text-sm text-muted-foreground">
-                              The current token will stop working immediately. Any project still using it will get rejected (401) until you update it with the new one.
-                            </p>
-                            <div className="flex justify-end gap-2">
-                              <Button type="button" variant="ghost" onClick={() => setRegenerateDialogOpen(false)}>Cancel</Button>
-                              <Button
-                                type="button"
-                                className="bg-red-600 hover:bg-red-700"
-                                onClick={() => generateSyncTokenMutation.mutate(undefined)}
-                                disabled={generateSyncTokenMutation.isPending}
-                              >
-                                {generateSyncTokenMutation.isPending ? "Regenerating..." : "Regenerate anyway"}
-                              </Button>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                  <div className="inline-flex items-center gap-2">
-                    <CalendarDays className="h-4 w-4 text-brand-700" />
-                    {selectedProject.due_date ? `Due ${format(new Date(selectedProject.due_date), "MMM d, yyyy")}` : "No due date"}
-                  </div>
-                  <div className="inline-flex items-center gap-2">
-                    <CheckSquare2 className="h-4 w-4 text-brand-700" />
-                    Created by {selectedProject.employee?.full_name ?? "Unknown"}
-                  </div>
-                  {selectedProject.last_synced_at && (
-                    <span className="text-xs">Last synced {formatDistanceToNow(new Date(selectedProject.last_synced_at), { addSuffix: true })}</span>
-                  )}
-                  {selectedProject.last_commit_sha && (
-                    <div className="inline-flex items-center gap-2">
-                      <GitCommitHorizontal className="h-4 w-4 text-brand-700" />
-                      <code className="text-xs">{selectedProject.last_commit_sha.slice(0, 7)}</code>
-                      {selectedProject.last_commit_message && (
-                        <span className="text-xs truncate max-w-[240px]">{selectedProject.last_commit_message}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid gap-6 2xl:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-2"><ListTodo className="h-4 w-4 text-brand-700" /><CardTitle className="text-base">Work Items</CardTitle></div>
-                  <CardDescription>Break the project down into concrete tasks.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <form onSubmit={e => { e.preventDefault(); if (canCreateTask) createTaskMutation.mutate(); }} className="space-y-3 rounded-2xl border border-border bg-white/5 p-4">
-                    <Input value={taskTitle} onChange={e => setTaskTitle(e.target.value)} placeholder="New task title" />
-                    <Textarea value={taskDetails} onChange={e => setTaskDetails(e.target.value)} placeholder="Add context or acceptance criteria." rows={3} />
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <Input type="date" value={taskDueDate} onChange={e => setTaskDueDate(e.target.value)} />
-                      <Button type="submit" className="bg-brand-700 hover:bg-brand-800" disabled={!canCreateTask || createTaskMutation.isPending}>
-                        <PlusCircle className="mr-2 h-4 w-4" />Add Task
-                      </Button>
-                    </div>
-                  </form>
-                  {selectedTasks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No tasks yet.</p>
-                  ) : selectedTasks.map(task => (
-                    <div key={task.id} className="rounded-2xl border border-border p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-medium text-foreground">{task.title}</p>
-                            <Badge variant="outline" className={taskStyles[task.status]}>{task.status.replace("_", " ")}</Badge>
-                          </div>
-                          {task.details && <p className="mt-2 text-sm text-muted-foreground">{task.details}</p>}
-                          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                            <span>{task.employee?.full_name ?? "Unknown"}</span>
-                            {task.due_date && <span>Due {format(new Date(task.due_date), "MMM d, yyyy")}</span>}
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-start gap-2">
-                          <select value={task.status} onChange={e => updateTaskMutation.mutate({ taskId: task.id, status: e.target.value as TaskStatus })} className="flex h-10 w-32 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" disabled={!canManage(task.created_by)}>
-                            {(["todo","in_progress","done"] as TaskStatus[]).map(s => <option key={s} value={s}>{s.replace("_"," ")}</option>)}
-                          </select>
-                          {canManage(task.created_by) && (
-                            <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-red-600" onClick={() => deleteTaskMutation.mutate(task.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-2"><CheckSquare2 className="h-4 w-4 text-brand-700" /><CardTitle className="text-base">Notes</CardTitle></div>
-                  <CardDescription>Team notes and observations for this project.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <form onSubmit={e => { e.preventDefault(); if (noteText.trim()) createUpdateMutation.mutate(); }} className="space-y-3 rounded-2xl border border-border bg-white/5 p-4">
-                    <Textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Write a note..." rows={4} />
-                    <Button type="submit" className="bg-brand-700 hover:bg-brand-800" disabled={!noteText.trim() || createUpdateMutation.isPending}>
-                      <PlusCircle className="mr-2 h-4 w-4" />Add Note
-                    </Button>
-                  </form>
-                  {projectUpdates.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No notes yet.</p>
-                  ) : projectUpdates.map(update => (
-                    <div key={update.id} className="rounded-2xl border border-border p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className="text-xs font-semibold text-brand-700">{update.employee?.full_name ?? "Unknown"}</span>
-                            <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(update.created_at), { addSuffix: true })}</span>
-                          </div>
-                          <p className="whitespace-pre-wrap text-sm text-foreground">{update.details}</p>
-                        </div>
-                        {canManage(update.created_by) && (
-                          <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-red-600 shrink-0" onClick={() => deleteUpdateMutation.mutate(update.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>New project</DialogTitle></DialogHeader>
+          <form onSubmit={e => { e.preventDefault(); if (title.trim() && me) create.mutate(); }} className="space-y-3">
+            <div>
+              <label htmlFor="np-title" className={labelCls}>Title</label>
+              <Input id="np-title" autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="Wedding Photo Upload" />
             </div>
-          </div>
-        ) : (
-          <Card><CardContent className="flex min-h-80 items-center justify-center text-sm text-muted-foreground">Select a project to start tracking work.</CardContent></Card>
-        )}
-      </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="np-client" className={labelCls}>Client</label>
+                <select id="np-client" className={fieldCls} value={clientId} onChange={e => setClientId(e.target.value)}>
+                  <option value="">No client</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="np-due" className={labelCls}>Due date</label>
+                <input id="np-due" type="date" className={fieldCls} value={due} onChange={e => setDue(e.target.value)} />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">Everything else (description, team, milestones, links) is added on the project page.</p>
+            {error && <p className="text-xs text-bad">{error}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="ghost" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={!title.trim() || !me || create.isPending}>{create.isPending ? "Creating…" : "Create project"}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Moon, Palette, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -12,22 +12,21 @@ const ACCENTS = [
   { key: "5", name: "Ruby", color: "#fb7185" },
 ] as const;
 
-// Reads/writes document.documentElement directly (class="dark", data-accent)
-// rather than through React state - same approach as coachfio's own
-// hub.js/app-shell.js theme toggle, and it's what the inline pre-paint script
-// in layout.tsx writes before hydration, so there's one source of truth.
+// The theme lives on <html> (class="dark", data-accent) and is written before
+// paint by the inline script in layout.tsx. Reading it through an external
+// store keeps the server render (dark + Pitch defaults) and the client in sync
+// without a mount effect.
+function subscribe(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-accent"] });
+  return () => observer.disconnect();
+}
+
 export function ThemePicker() {
-  const [mounted, setMounted] = useState(false);
-  const [isDark, setIsDark] = useState(true);
-  const [accent, setAccent] = useState("1");
+  const isDark = useSyncExternalStore(subscribe, () => document.documentElement.classList.contains("dark"), () => true);
+  const accent = useSyncExternalStore(subscribe, () => document.documentElement.getAttribute("data-accent") || "1", () => "1");
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-    setIsDark(document.documentElement.classList.contains("dark"));
-    setAccent(document.documentElement.getAttribute("data-accent") || "1");
-  }, []);
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -42,7 +41,6 @@ export function ThemePicker() {
 
   function toggleTheme() {
     const next = !isDark;
-    setIsDark(next);
     document.documentElement.classList.toggle("dark", next);
     try {
       localStorage.setItem("godevlab.theme", next ? "dark" : "light");
@@ -50,15 +48,10 @@ export function ThemePicker() {
   }
 
   function chooseAccent(key: string) {
-    setAccent(key);
     document.documentElement.setAttribute("data-accent", key);
     try {
       localStorage.setItem("godevlab.accent", key);
     } catch {}
-  }
-
-  if (!mounted) {
-    return <div className="h-8 w-[68px]" />;
   }
 
   return (
@@ -68,7 +61,7 @@ export function ThemePicker() {
         onClick={() => setPickerOpen((v) => !v)}
         aria-label="Choose accent color"
         aria-expanded={pickerOpen}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white/5 text-muted-foreground transition-colors hover:text-foreground"
+        className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-foreground/5 text-muted-foreground transition-colors hover:text-foreground"
       >
         <Palette className="h-4 w-4" />
       </button>
@@ -76,7 +69,7 @@ export function ThemePicker() {
         type="button"
         onClick={toggleTheme}
         aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
-        className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-white/5 text-muted-foreground transition-colors hover:text-foreground"
+        className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-foreground/5 text-muted-foreground transition-colors hover:text-foreground"
       >
         {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </button>
@@ -92,8 +85,8 @@ export function ThemePicker() {
               type="button"
               onClick={() => chooseAccent(a.key)}
               className={cn(
-                "flex w-full items-center gap-2 rounded-xl px-2 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground",
-                accent === a.key && "bg-white/10 text-foreground"
+                "flex w-full items-center gap-2 rounded-xl px-2 py-1.5 font-mono text-xs font-medium text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground",
+                accent === a.key && "bg-foreground/10 text-foreground"
               )}
             >
               <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: a.color }} />

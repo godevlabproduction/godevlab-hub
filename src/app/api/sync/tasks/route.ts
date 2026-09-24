@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await auth.admin
     .from("project_tasks")
-    .select("id, title, details, status, due_date")
+    .select("id, title, details, status, due_date, assigned_to, estimate_hours")
     .eq("project_id", auth.projectId)
     .order("created_at", { ascending: false });
   if (error) {

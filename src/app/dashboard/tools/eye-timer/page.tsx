@@ -116,7 +116,7 @@ export default function EyeTimerPage() {
         <CardContent className="space-y-6">
           <div
             className={`rounded-2xl border py-10 text-center ${
-              phase === "rest" ? "border-primary/40 bg-primary/10" : "border-border bg-white/5"
+              phase === "rest" ? "border-primary/40 bg-primary/10" : "border-border bg-foreground/5"
             }`}
           >
             <p className={`font-mono text-5xl font-bold ${phase === "rest" ? "text-brand-700" : "text-foreground"}`}>

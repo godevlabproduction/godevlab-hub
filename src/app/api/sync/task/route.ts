@@ -4,9 +4,10 @@ import { resolveSyncAuth } from "@/lib/supabase/sync-auth";
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {
     token?: string; employee_email?: string; title?: string; details?: string; due_date?: string;
+    estimate_hours?: number;
   } | null;
 
-  const { token, employee_email, title, details, due_date } = body ?? {};
+  const { token, employee_email, title, details, due_date, estimate_hours } = body ?? {};
   if (!token || !title?.trim()) {
     return NextResponse.json({ error: "Missing token or title" }, { status: 400 });
   }
@@ -21,6 +22,9 @@ export async function POST(request: Request) {
     due_date: due_date || null,
     status: "todo",
     created_by: auth.attributedTo,
+    // work created from a person's own Claude session is theirs by default
+    assigned_to: auth.attributedTo,
+    estimate_hours: typeof estimate_hours === "number" && estimate_hours > 0 ? estimate_hours : null,
   }).select("id").single();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

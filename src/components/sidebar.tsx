@@ -6,26 +6,41 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, FolderKanban, StickyNote, Users, LogOut, Sparkles,
-  ClipboardList, CheckSquare, ExternalLink, Eye,
+  ClipboardList, CheckSquare, ExternalLink, Eye, Sun, Inbox, BarChart3, Briefcase,
 } from "lucide-react";
+import { useUnreadCount } from "@/hooks/use-unread-count";
 import { Button } from "@/components/ui/button";
 import { ThemePicker } from "@/components/theme-picker";
 import type { Employee } from "@/types";
 
 const navSections = [
   {
-    title: "Operations",
+    title: "Workspace",
     items: [
-      { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
-      { href: "/dashboard/employees", label: "Employees", icon: Users },
-      { href: "/dashboard/operations/employee-tasks", label: "Employee Tasks", icon: ClipboardList },
+      { href: "/dashboard/my-day", label: "My Day", icon: Sun },
+      { href: "/dashboard/inbox", label: "Inbox", icon: Inbox, badge: true },
       { href: "/dashboard/operations/personal-tasks", label: "My Tasks", icon: CheckSquare },
     ],
   },
   {
-    title: "Project Tracking",
+    title: "Delivery",
     items: [
+      { href: "/dashboard", label: "Command Center", icon: LayoutDashboard },
       { href: "/dashboard/projects", label: "Projects", icon: FolderKanban },
+    ],
+  },
+  {
+    title: "Team & clients",
+    items: [
+      { href: "/dashboard/employees", label: "People", icon: Users },
+      { href: "/dashboard/capacity", label: "Capacity", icon: BarChart3 },
+      { href: "/dashboard/operations/employee-tasks", label: "Team Tasks", icon: ClipboardList },
+      { href: "/dashboard/clients", label: "Clients", icon: Briefcase },
+    ],
+  },
+  {
+    title: "Knowledge",
+    items: [
       { href: "/dashboard/notes", label: "Notes", icon: StickyNote },
     ],
   },
@@ -51,6 +66,7 @@ export function Sidebar({ employee }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const { data: unread = 0 } = useUnreadCount();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -68,12 +84,12 @@ export function Sidebar({ employee }: SidebarProps) {
       <div className="p-4">
         <div className="flex items-center gap-3 px-1 py-1">
           <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-gradient-to-br from-brand-700 to-brand-800">
-            <Sparkles className="h-4 w-4 text-white" />
+            <Sparkles className="h-4 w-4 text-primary-foreground" />
           </div>
           <p className="font-mono text-base font-bold text-sidebar-foreground">GoDevLab</p>
         </div>
       </div>
-      <nav className="flex-1 px-3 pb-3">
+      <nav className="flex-1 overflow-y-auto px-3 pb-3">
         <div className="space-y-6">
           {navSections.map((section) => (
             <div key={section.title} className="space-y-1">
@@ -106,6 +122,14 @@ export function Sidebar({ employee }: SidebarProps) {
                     >
                       <item.icon className="w-4 h-4" />
                       {item.label}
+                      {"badge" in item && item.badge && unread > 0 && (
+                        <span
+                          aria-label={`${unread} unread`}
+                          className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-bad-soft px-1.5 font-mono text-[10.5px] font-bold text-bad"
+                        >
+                          {unread > 99 ? "99+" : unread}
+                        </span>
+                      )}
                     </Link>
                   )
                 )}

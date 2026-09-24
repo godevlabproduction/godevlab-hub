@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveSyncAuth } from "@/lib/supabase/sync-auth";
 
-const VALID_STATUSES = ["todo", "in_progress", "done"] as const;
+const VALID_STATUSES = ["todo", "in_progress", "review", "done"] as const;
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null) as {
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
   const { token, employee_email, task_id, status } = body ?? {};
   if (!token || !task_id || !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
-    return NextResponse.json({ error: "Missing token or task_id, or invalid status (must be todo, in_progress, or done)" }, { status: 400 });
+    return NextResponse.json({ error: "Missing token or task_id, or invalid status (must be todo, in_progress, review, or done)" }, { status: 400 });
   }
 
   const auth = await resolveSyncAuth(token, employee_email);

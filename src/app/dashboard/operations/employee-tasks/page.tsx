@@ -18,9 +18,9 @@ import { Badge } from "@/components/ui/badge";
 import type { TaskStatus } from "@/types";
 
 const statusStyles: Record<TaskStatus, string> = {
-  todo: "border-border bg-white/10 text-muted-foreground",
-  in_progress: "border-sky-400/30 bg-sky-400/10 text-sky-300",
-  done: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+  todo: "border-border bg-foreground/10 text-muted-foreground",
+  in_progress: "border-info/30 bg-info-soft text-info",
+  done: "border-ok/30 bg-ok-soft text-ok",
 };
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -45,6 +45,7 @@ export default function EmployeeTasksPage() {
   const [assignedTo, setAssignedTo] = useState("");
   const [projectId, setProjectId] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [estimate, setEstimate] = useState("");
 
   const { data: tasks = [] } = useQuery({ queryKey: ["employee-tasks"], queryFn: () => getEmployeeTasks(supabase) });
   const { data: employees = [] } = useQuery({ queryKey: ["employees"], queryFn: () => getEmployees(supabase) });
@@ -57,11 +58,12 @@ export default function EmployeeTasksPage() {
       assigned_to: assignedTo,
       project_id: projectId || undefined,
       due_date: dueDate || undefined,
+      estimate_hours: estimate.trim() !== "" && Number(estimate) >= 0 ? Number(estimate) : null,
       created_by: employee!.id,
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employee-tasks"] });
-      setTitle(""); setDetails(""); setAssignedTo(""); setProjectId(""); setDueDate("");
+      setTitle(""); setDetails(""); setAssignedTo(""); setProjectId(""); setDueDate(""); setEstimate("");
     },
   });
 
@@ -131,6 +133,10 @@ export default function EmployeeTasksPage() {
               <div>
                 <label className="mb-1.5 block text-sm font-medium">Due date (optional)</label>
                 <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium">Estimate in hours (optional)</label>
+                <Input type="number" min={0} max={999} step={0.5} value={estimate} onChange={e => setEstimate(e.target.value)} placeholder="e.g. 2.5" />
               </div>
               <Button
                 type="submit"

@@ -18,7 +18,7 @@ import type { EmployeeRole } from "@/types";
 
 const roleStyles: Record<string, string> = {
   admin: "border-primary/40 bg-primary/10 text-primary",
-  member: "border-border bg-white/10 text-muted-foreground",
+  member: "border-border bg-foreground/10 text-muted-foreground",
 };
 
 export default function EmployeesPage() {
@@ -187,7 +187,7 @@ export default function EmployeesPage() {
         })}
 
         {employees.length === 0 && (
-          <div className="col-span-full rounded-xl border border-dashed border-border bg-white/5 px-4 py-12 text-center text-sm text-muted-foreground">
+          <div className="col-span-full rounded-xl border border-dashed border-border bg-foreground/5 px-4 py-12 text-center text-sm text-muted-foreground">
             <Users className="mx-auto mb-2 h-6 w-6" />
             No employees found. Make sure the schema is applied in Supabase.
           </div>

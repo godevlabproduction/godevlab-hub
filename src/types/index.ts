@@ -2,6 +2,8 @@ export type EmployeeRole = "admin" | "member";
 export type ProjectStatus = "backlog" | "active" | "review" | "completed";
 export type ProjectPriority = "low" | "medium" | "high";
 export type TaskStatus = "todo" | "in_progress" | "done";
+// Project tasks add a review column; employee/personal tasks stay on TaskStatus.
+export type ProjectTaskStatus = TaskStatus | "review";
 export type UpdateType = "progress" | "note" | "blocker" | "decision";
 
 export interface Employee {
@@ -9,6 +11,18 @@ export interface Employee {
   full_name: string;
   email: string;
   role: EmployeeRole;
+  created_at: string;
+  weekly_capacity_hours?: number;
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  website: string | null;
+  notes: string | null;
+  created_by: string | null;
   created_at: string;
 }
 
@@ -50,10 +64,13 @@ export interface Project {
   last_synced_at: string | null;
   last_commit_sha: string | null;
   last_commit_message: string | null;
+  start_date: string | null;
+  client_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
   employee?: Employee;
+  client?: Client | null;
 }
 
 export interface ProjectTask {
@@ -61,12 +78,56 @@ export interface ProjectTask {
   project_id: string;
   title: string;
   details: string | null;
-  status: TaskStatus;
+  status: ProjectTaskStatus;
   due_date: string | null;
+  assigned_to: string | null;
+  estimate_hours: number | null;
+  completed_at: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
   employee?: Employee;
+  assignee?: Employee | null;
+}
+
+export interface ProjectMilestone {
+  id: string;
+  project_id: string;
+  title: string;
+  start_date: string | null;
+  due_date: string;
+  completed_at: string | null;
+  position: number;
+  created_by: string;
+  created_at: string;
+}
+
+export interface TimeEntry {
+  id: string;
+  employee_id: string;
+  project_id: string | null;
+  task_id: string | null;
+  note: string | null;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+  project?: Pick<Project, "id" | "title"> | null;
+  task?: { id: string; title: string } | null;
+}
+
+export type NotificationType = "task_assigned" | "blocker" | "project_assigned" | "blocker_resolved";
+
+export interface HubNotification {
+  id: string;
+  recipient_id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  project_id: string | null;
+  task_id: string | null;
+  actor_id: string | null;
+  read_at: string | null;
+  created_at: string;
 }
 
 export interface ProjectUpdate {
@@ -77,7 +138,10 @@ export interface ProjectUpdate {
   update_type: UpdateType;
   created_by: string;
   created_at: string;
+  resolved_at?: string | null;
+  resolved_by?: string | null;
   employee?: Employee;
+  project?: Pick<Project, "id" | "title">;
 }
 
 export interface Note {
@@ -98,6 +162,7 @@ export interface EmployeeTask {
   due_date: string | null;
   assigned_to: string;
   project_id: string | null;
+  estimate_hours?: number | null;
   created_by: string;
   created_at: string;
   updated_at: string;
