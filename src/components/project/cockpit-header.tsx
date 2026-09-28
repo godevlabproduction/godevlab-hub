@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -13,20 +13,22 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { AvatarStack, HealthPill } from "@/components/hub-ui";
+import { AvatarStack, HealthPill, NewsDot } from "@/components/hub-ui";
+import { useProjectNews } from "@/hooks/use-project-news";
 import { cn } from "@/lib/utils";
 import { fieldCls, labelCls } from "./form-styles";
 import { TaskDialog } from "./task-dialog";
 import type { Cockpit } from "./use-cockpit";
+import type { NewsSection } from "@/types";
 
 export const COCKPIT_TABS = [
   { key: "overview", label: "Overview" },
-  { key: "board", label: "Board" },
-  { key: "timeline", label: "Timeline" },
-  { key: "activity", label: "Activity" },
-  { key: "docs", label: "Docs & links" },
-  { key: "access", label: "Access" },
-  { key: "sync", label: "Sync" },
+  { key: "board", label: "Board", section: "board" as NewsSection },
+  { key: "timeline", label: "Timeline", section: "timeline" as NewsSection },
+  { key: "activity", label: "Activity", section: "activity" as NewsSection },
+  { key: "docs", label: "Docs & links", section: "docs" as NewsSection },
+  { key: "access", label: "Access", section: "access" as NewsSection },
+  { key: "sync", label: "Sync", section: "sync" as NewsSection },
 ] as const;
 
 const chipCls = "inline-flex h-7 items-center gap-1.5 rounded-full border border-foreground/15 px-3 text-xs text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground";
@@ -52,6 +54,19 @@ export function CockpitHeader({ cockpit, tab, onTab }: { cockpit: Cockpit; tab: 
   const [taskOpen, setTaskOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const { sectionHasNews, markSeen } = useProjectNews();
+  const projectId = project?.id;
+
+  // Opening a tab (by click, or landing directly on one via URL hash) clears
+  // its own dot. Overview never clears anything - it's an aggregate view.
+  useEffect(() => {
+    if (!projectId) return;
+    const activeTab = COCKPIT_TABS.find(t => t.key === tab);
+    if (activeTab && "section" in activeTab) markSeen(projectId, activeTab.section);
+    // markSeen is stable enough in practice (new fn each render, but the
+    // upsert is idempotent) - only re-run when the tab or project changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, projectId]);
 
   const canSync = isAdmin || isAssigned;
   const { data: sync } = useQuery({
@@ -149,6 +164,13 @@ export function CockpitHeader({ cockpit, tab, onTab }: { cockpit: Cockpit; tab: 
           >
             {t.label}
             {t.key === "board" && <span className="rounded-full bg-foreground/10 px-1.5 py-px text-[10.5px] text-muted-foreground">{tasks.length}</span>}
+            {t.key === "overview"
+              ? COCKPIT_TABS.some(x => "section" in x && projectId && sectionHasNews(projectId, x.section)) && (
+                  <NewsDot label="This project has news" />
+                )
+              : "section" in t && projectId && sectionHasNews(projectId, t.section) && (
+                  <NewsDot label={`${t.label} has news`} />
+                )}
           </button>
         ))}
       </div>

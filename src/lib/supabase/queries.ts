@@ -3,7 +3,7 @@ import type {
   Employee, EmployeeRole, Project, ProjectTask, ProjectUpdate, Note,
   ProjectStatus, ProjectPriority, ProjectTaskStatus, TaskStatus, UpdateType,
   EmployeeTask, PersonalTask, ProjectCredential, ProjectAssignment,
-  Client, ProjectMilestone, TimeEntry, HubNotification,
+  Client, ProjectMilestone, TimeEntry, HubNotification, ProjectActivity, ProjectView, NewsSection,
 } from "@/types";
 
 
@@ -184,6 +184,33 @@ export async function deleteNote(supabase: SupabaseClient, noteId: string): Prom
   if (error) throw error;
 }
 
+export async function getProjectActivity(supabase: SupabaseClient): Promise<ProjectActivity[]> {
+  const { data, error } = await supabase.from("project_activity").select("*");
+  if (error) return []; // the project_news migration may not be applied yet
+  return data ?? [];
+}
+
+export async function getProjectViews(supabase: SupabaseClient): Promise<ProjectView[]> {
+  const { data, error } = await supabase.from("project_views").select("*");
+  if (error) return [];
+  return data ?? [];
+}
+
+export async function markProjectSectionSeen(
+  supabase: SupabaseClient,
+  employeeId: string,
+  projectId: string,
+  section: NewsSection,
+): Promise<void> {
+  const { error } = await supabase
+    .from("project_views")
+    .upsert(
+      { employee_id: employeeId, project_id: projectId, section, last_viewed_at: new Date().toISOString() },
+      { onConflict: "employee_id,project_id,section" },
+    );
+  if (error) throw error;
+}
+
 export async function getEmployeeTasks(supabase: SupabaseClient): Promise<EmployeeTask[]> {
   const { data } = await supabase
     .from("employee_tasks")
@@ -286,6 +313,42 @@ export async function unassignEmployeeFromProject(supabase: SupabaseClient, proj
     .eq("project_id", projectId)
     .eq("employee_id", employeeId);
   if (error) throw error;
+}
+
+export async function updateEmployee(
+  id: string,
+  input: { full_name?: string; email?: string; role?: EmployeeRole }
+): Promise<Employee> {
+  const res = await fetch(`/api/employees/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Failed to update employee");
+  return json.employee;
+}
+
+export async function reactivateEmployee(id: string): Promise<void> {
+  const res = await fetch(`/api/employees/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reactivate: true }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error ?? "Failed to reactivate employee");
+}
+
+export async function deactivateEmployee(id: string): Promise<void> {
+  const res = await fetch(`/api/employees/${id}?mode=deactivate`, { method: "DELETE" });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error ?? "Failed to deactivate employee");
+}
+
+export async function deleteEmployeeAccount(id: string): Promise<void> {
+  const res = await fetch(`/api/employees/${id}`, { method: "DELETE" });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error ?? "Failed to delete employee");
 }
 
 export async function createEmployee(input: {

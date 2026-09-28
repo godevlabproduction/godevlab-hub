@@ -129,6 +129,11 @@ export function KpiTile({ label, value, sub, valueClassName, children }: { label
   );
 }
 
+/** A small "something changed here since you last looked" indicator. */
+export function NewsDot({ label, className }: { label: string; className?: string }) {
+  return <span role="img" aria-label={label} title={label} className={cn("inline-block size-2 shrink-0 rounded-full bg-bad", className)} />;
+}
+
 export function PanelHeader({ title, aside }: { title: string; aside?: ReactNode }) {
   return (
     <div className="mb-3 flex items-baseline justify-between gap-3">

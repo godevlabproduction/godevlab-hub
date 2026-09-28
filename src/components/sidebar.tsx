@@ -9,6 +9,7 @@ import {
   ClipboardList, CheckSquare, ExternalLink, Eye, Sun, Inbox, BarChart3, Briefcase,
 } from "lucide-react";
 import { useUnreadCount } from "@/hooks/use-unread-count";
+import { useProjectNews } from "@/hooks/use-project-news";
 import { Button } from "@/components/ui/button";
 import { ThemePicker } from "@/components/theme-picker";
 import type { Employee } from "@/types";
@@ -18,7 +19,7 @@ const navSections = [
     title: "Workspace",
     items: [
       { href: "/dashboard/my-day", label: "My Day", icon: Sun },
-      { href: "/dashboard/inbox", label: "Inbox", icon: Inbox, badge: true },
+      { href: "/dashboard/inbox", label: "Inbox", icon: Inbox, badgeKey: "unread" as const },
       { href: "/dashboard/operations/personal-tasks", label: "My Tasks", icon: CheckSquare },
     ],
   },
@@ -26,7 +27,7 @@ const navSections = [
     title: "Delivery",
     items: [
       { href: "/dashboard", label: "Command Center", icon: LayoutDashboard },
-      { href: "/dashboard/projects", label: "Projects", icon: FolderKanban },
+      { href: "/dashboard/projects", label: "Projects", icon: FolderKanban, badgeKey: "news" as const },
     ],
   },
   {
@@ -67,6 +68,8 @@ export function Sidebar({ employee }: SidebarProps) {
   const router = useRouter();
   const supabase = createClient();
   const { data: unread = 0 } = useUnreadCount();
+  const { projectsWithNews } = useProjectNews();
+  const badgeCounts = { unread, news: projectsWithNews };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -122,12 +125,12 @@ export function Sidebar({ employee }: SidebarProps) {
                     >
                       <item.icon className="w-4 h-4" />
                       {item.label}
-                      {"badge" in item && item.badge && unread > 0 && (
+                      {"badgeKey" in item && item.badgeKey && badgeCounts[item.badgeKey] > 0 && (
                         <span
-                          aria-label={`${unread} unread`}
+                          aria-label={`${badgeCounts[item.badgeKey]} ${item.badgeKey === "unread" ? "unread" : "with news"}`}
                           className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-bad-soft px-1.5 font-mono text-[10.5px] font-bold text-bad"
                         >
-                          {unread > 99 ? "99+" : unread}
+                          {badgeCounts[item.badgeKey] > 99 ? "99+" : badgeCounts[item.badgeKey]}
                         </span>
                       )}
                     </Link>

@@ -13,7 +13,8 @@ import {
 } from "@/lib/supabase/queries";
 import { useCurrentEmployee } from "@/hooks/use-employee";
 import { buildPortfolio, type PortfolioRow } from "@/lib/portfolio";
-import { AvatarStack, HealthPill, KpiTile, ProgressBar, healthTone } from "@/components/hub-ui";
+import { AvatarStack, HealthPill, KpiTile, NewsDot, ProgressBar, healthTone } from "@/components/hub-ui";
+import { useProjectNews } from "@/hooks/use-project-news";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ export default function ProjectsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: me } = useCurrentEmployee();
+  const { hasNews } = useProjectNews();
 
   const { data: projects = [], isLoading } = useQuery({ queryKey: ["projects"], queryFn: () => getProjects(supabase), refetchInterval: 30000 });
   const { data: tasks = [] } = useQuery({ queryKey: ["project-tasks"], queryFn: () => getAllProjectTasks(supabase) });
@@ -188,7 +190,10 @@ export default function ProjectsPage() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h2 className="truncate text-[15px] font-semibold text-foreground group-hover:text-primary">{r.project.title}</h2>
+                  <h2 className="flex items-center gap-1.5 truncate text-[15px] font-semibold text-foreground group-hover:text-primary">
+                    {r.project.title}
+                    {hasNews(r.project.id) && <NewsDot label={`${r.project.title} has news`} />}
+                  </h2>
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
                     {r.project.client?.name ?? r.project.client_name ?? "Internal"} · <span className="capitalize">{r.project.priority}</span> priority
                   </p>

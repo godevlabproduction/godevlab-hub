@@ -13,6 +13,7 @@ export interface Employee {
   role: EmployeeRole;
   created_at: string;
   weekly_capacity_hours?: number;
+  deactivated_at?: string | null;
 }
 
 export interface Client {
@@ -179,6 +180,25 @@ export interface PersonalTask {
   created_by: string;
   created_at: string;
   updated_at: string;
+}
+
+export type NewsSection = "board" | "timeline" | "activity" | "docs" | "access" | "sync";
+
+export interface ProjectActivity {
+  project_id: string;
+  board_at: string | null;
+  timeline_at: string | null;
+  activity_at: string | null;
+  docs_at: string | null;
+  access_at: string | null;
+  sync_at: string | null;
+}
+
+export interface ProjectView {
+  employee_id: string;
+  project_id: string;
+  section: NewsSection;
+  last_viewed_at: string;
 }
 
 export interface ReportJson {
